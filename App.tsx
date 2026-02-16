@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserRole } from './types';
-import { storage } from './services/storageService'; // Import storage
+import { storage, getApiUrl } from './services/storageService'; // Import getApiUrl
 import Login from './pages/Login';
 import Layout from './components/Layout';
 import StudentData from './pages/admin/StudentData';
@@ -11,7 +11,7 @@ import Settings from './pages/admin/Settings';
 import Monitoring from './pages/admin/Monitoring';
 import StudentDashboard from './pages/student/StudentDashboard';
 import StudentExamList from './pages/student/StudentExamList';
-import StudentResults from './pages/student/StudentResults'; // Import new component
+import StudentResults from './pages/student/StudentResults';
 import ExamInterface from './pages/student/ExamInterface';
 
 const App: React.FC = () => {
@@ -25,17 +25,20 @@ const App: React.FC = () => {
   // INITIAL DATA SYNC
   useEffect(() => {
     const initApp = async () => {
-        const url = localStorage.getItem('cbt_api_url');
+        // PERBAIKAN: Gunakan getApiUrl() agar mengambil default URL jika localStorage kosong
+        const url = getApiUrl(); 
+        
         if (url) {
+            setSyncStatus('Sedang mengunduh data siswa & soal...');
             // Attempt to sync with Google Sheets
             const success = await storage.sync();
             if (success) {
                 setSyncStatus('Data berhasil dimuat.');
             } else {
-                setSyncStatus('Gagal memuat data. Periksa koneksi internet atau pengaturan URL.');
+                setSyncStatus('Gagal memuat data. Periksa koneksi internet.');
             }
         } else {
-            setSyncStatus('URL Database belum diatur.');
+            setSyncStatus('URL Database belum diatur di kode program.');
         }
         setIsLoading(false);
     };

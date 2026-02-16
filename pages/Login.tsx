@@ -22,26 +22,36 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [classes, setClasses] = useState<string[]>([]);
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     // Refresh settings
     setSettings(storage.settings.get());
 
     if (role === UserRole.STUDENT) {
-      // Load students for dropdown
-      const data = storage.students.getAll();
-      setStudents(data);
-      // Get unique classes
-      const uniqueClasses = Array.from(new Set(data.map(s => s.class))).sort();
-      setClasses(uniqueClasses);
-      // Reset selections
-      setSelectedClass('');
-      setSelectedStudentId('');
+      loadStudents();
     } else {
       // Clear inputs for other roles
       setPassword('');
     }
   }, [role]);
+
+  const loadStudents = () => {
+      const data = storage.students.getAll();
+      setStudents(data);
+      const uniqueClasses = Array.from(new Set(data.map(s => s.class))).sort();
+      setClasses(uniqueClasses);
+      setSelectedClass('');
+      setSelectedStudentId('');
+  };
+
+  const handleManualRefresh = async () => {
+      setIsRefreshing(true);
+      await storage.sync(); // Force re-sync
+      setSettings(storage.settings.get()); // Update settings
+      loadStudents(); // Update students
+      setIsRefreshing(false);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,7 +155,17 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 {role === UserRole.STUDENT ? (
                     <>
                     <div className="space-y-1 group">
-                        <label className="text-white text-[10px] font-bold ml-1 uppercase tracking-wider opacity-90">Kelas</label>
+                        <div className="flex justify-between items-end">
+                            <label className="text-white text-[10px] font-bold ml-1 uppercase tracking-wider opacity-90">Kelas</label>
+                            {/* Manual Refresh Button for Students */}
+                            <button 
+                                type="button" 
+                                onClick={handleManualRefresh}
+                                className={`text-[10px] text-blue-300 hover:text-white underline ${isRefreshing ? 'animate-pulse' : ''}`}
+                            >
+                                {isRefreshing ? 'Memuat...' : '🔄 Refresh Data'}
+                            </button>
+                        </div>
                         <div className="relative">
                             <select
                                 value={selectedClass}
@@ -177,7 +197,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                                 disabled={!selectedClass}
                                 required
                             >
-                                <option value="" className="text-gray-900 bg-white">Pilih Nama</option>
+                                <option value="" className="text-gray-900 bg-white">
+                                    {students.length === 0 ? "Data Kosong (Klik Refresh)" : "Pilih Nama"}
+                                </option>
                                 {filteredStudents.map(s => (
                                     <option key={s.id} value={s.id} className="text-gray-900 bg-white">{s.name} ({s.nis})</option>
                                 ))}
