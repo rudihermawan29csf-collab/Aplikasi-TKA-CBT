@@ -10,7 +10,8 @@ import Analysis from './pages/admin/Analysis';
 import Settings from './pages/admin/Settings';
 import Monitoring from './pages/admin/Monitoring';
 import StudentDashboard from './pages/student/StudentDashboard';
-import StudentExamList from './pages/student/StudentExamList'; // Import new component
+import StudentExamList from './pages/student/StudentExamList';
+import StudentResults from './pages/student/StudentResults'; // Import new component
 import ExamInterface from './pages/student/ExamInterface';
 
 const App: React.FC = () => {
@@ -65,7 +66,7 @@ const App: React.FC = () => {
         switch(currentPage) {
             case 'dashboard': return <StudentDashboard username={username} />;
             case 'exam_list': return <StudentExamList username={username} onStartExam={setActiveExamId} />;
-            case 'results': return <div className="bg-white/80 backdrop-blur-md p-6 rounded-2xl border border-white/40 shadow-xl">Halaman Hasil Ujian (Lihat Dashboard untuk ringkasan)</div>;
+            case 'results': return <StudentResults username={username} />;
             default: return <StudentDashboard username={username} />;
         }
     }

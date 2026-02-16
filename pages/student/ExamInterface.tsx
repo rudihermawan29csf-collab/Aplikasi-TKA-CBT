@@ -17,7 +17,7 @@ const ExamInterface: React.FC<ExamInterfaceProps> = ({ examId, username, onFinis
   const [isFinished, setIsFinished] = useState(false);
   const [finalScore, setFinalScore] = useState(0);
   
-  // Proctoring
+  // Proctoring & Doubtful
   const [violationCount, setViolationCount] = useState(0);
   const [doubtful, setDoubtful] = useState<Set<string>>(new Set());
 
@@ -45,6 +45,18 @@ const ExamInterface: React.FC<ExamInterfaceProps> = ({ examId, username, onFinis
   const handleAnswer = (val: any) => {
     if (!questions[currentIdx]) return;
     setAnswers({ ...answers, [questions[currentIdx].id]: val });
+  };
+
+  const handleToggleDoubtful = () => {
+      if (!questions[currentIdx]) return;
+      const qId = questions[currentIdx].id;
+      const newDoubtful = new Set(doubtful);
+      if (newDoubtful.has(qId)) {
+          newDoubtful.delete(qId);
+      } else {
+          newDoubtful.add(qId);
+      }
+      setDoubtful(newDoubtful);
   };
 
   const handleSubmitExam = (forced = false) => {
@@ -120,6 +132,7 @@ const ExamInterface: React.FC<ExamInterfaceProps> = ({ examId, username, onFinis
 
   if (!exam || questions.length === 0) return <div>Loading...</div>;
   const currentQ = questions[currentIdx];
+  const isCurrentDoubtful = doubtful.has(currentQ.id);
 
   return (
     <div className="flex flex-col h-screen bg-gray-100">
@@ -133,7 +146,7 @@ const ExamInterface: React.FC<ExamInterfaceProps> = ({ examId, username, onFinis
             </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-8">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 pb-32">
             <div className="max-w-4xl mx-auto bg-white p-6 rounded shadow-sm min-h-[60vh]">
                 {currentQ.stimulus && (
                     <div className="mb-6 bg-gray-50 p-4 rounded border">
@@ -217,26 +230,56 @@ const ExamInterface: React.FC<ExamInterfaceProps> = ({ examId, username, onFinis
             </div>
         </div>
 
-        <div className="bg-white border-t p-4 flex justify-between items-center shadow-lg sticky bottom-0">
-             <button onClick={() => setCurrentIdx(p => Math.max(0, p - 1))} disabled={currentIdx===0} className="px-6 py-2 border rounded hover:bg-gray-50 disabled:opacity-50">← Sebelumnya</button>
-             
-             <div className="flex gap-2 overflow-x-auto max-w-[50%] no-scrollbar px-2">
+        {/* Bottom Navigation Bar */}
+        <div className="bg-white border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] sticky bottom-0 z-20">
+             {/* Question Number Toggle List */}
+             <div className="flex gap-2 overflow-x-auto no-scrollbar p-3 border-b bg-gray-50">
                  {questions.map((q, i) => (
                      <button key={i} onClick={() => setCurrentIdx(i)} 
-                         className={`w-8 h-8 flex-shrink-0 rounded text-xs font-bold ${
-                             currentIdx===i ? 'bg-blue-600 text-white' : 
-                             answers[q.id] ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'
+                         className={`w-10 h-10 flex-shrink-0 rounded-lg text-sm font-bold border-2 transition-all ${
+                             currentIdx === i ? 'bg-blue-600 text-white border-blue-600 scale-110 shadow-md' : 
+                             doubtful.has(q.id) ? 'bg-yellow-400 text-white border-yellow-500' :
+                             answers[q.id] ? 'bg-green-500 text-white border-green-600' : 
+                             'bg-white text-gray-500 border-gray-300 hover:bg-gray-100'
                          }`}>
                          {i+1}
                      </button>
                  ))}
              </div>
 
-             {currentIdx === questions.length - 1 ? (
-                 <button onClick={() => handleSubmitExam(false)} className="px-6 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700">Selesai ✓</button>
-             ) : (
-                 <button onClick={() => setCurrentIdx(p => Math.min(questions.length - 1, p + 1))} className="px-6 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700">Selanjutnya →</button>
-             )}
+             {/* Navigation Controls */}
+             <div className="p-4 flex justify-between items-center max-w-4xl mx-auto w-full">
+                 <button 
+                    onClick={() => setCurrentIdx(p => Math.max(0, p - 1))} 
+                    disabled={currentIdx===0} 
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 font-bold flex items-center gap-2"
+                 >
+                    <span>←</span> <span className="hidden md:inline">Sebelumnya</span>
+                 </button>
+                 
+                 {/* Ragu-ragu Button (Centered) */}
+                 <button 
+                    onClick={handleToggleDoubtful}
+                    className={`px-6 py-2 rounded-lg font-bold border-2 flex items-center gap-2 transition-colors ${
+                        isCurrentDoubtful 
+                        ? 'bg-yellow-400 text-white border-yellow-500 shadow-inner' 
+                        : 'bg-white text-yellow-600 border-yellow-400 hover:bg-yellow-50'
+                    }`}
+                 >
+                    <input type="checkbox" checked={isCurrentDoubtful} readOnly className="pointer-events-none w-4 h-4 accent-white" />
+                    Ragu-ragu
+                 </button>
+
+                 {currentIdx === questions.length - 1 ? (
+                     <button onClick={() => handleSubmitExam(false)} className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 shadow-md flex items-center gap-2">
+                        <span>Selesai</span> <span>✓</span>
+                     </button>
+                 ) : (
+                     <button onClick={() => setCurrentIdx(p => Math.min(questions.length - 1, p + 1))} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 shadow-md flex items-center gap-2">
+                        <span className="hidden md:inline">Selanjutnya</span> <span>→</span>
+                     </button>
+                 )}
+             </div>
         </div>
     </div>
   );

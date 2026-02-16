@@ -60,8 +60,12 @@ const StudentExamList: React.FC<StudentExamListProps> = ({ username, onStartExam
            </div>
            <div>
                 <h2 className="text-3xl font-extrabold text-gray-800 drop-shadow-sm">Daftar Ujian Aktif</h2>
-                <p className="text-gray-600 text-sm mt-1 font-medium bg-white/30 inline-block px-3 py-1 rounded-full">
-                    Ujian yang tersedia dan <b>belum kamu kerjakan</b>.
+                <div className="flex gap-2 mt-2">
+                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded font-bold uppercase">Literasi</span>
+                    <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded font-bold uppercase">Numerasi</span>
+                </div>
+                <p className="text-gray-600 text-sm mt-2 font-medium bg-white/30 inline-block px-3 py-1 rounded-full">
+                    Silakan kerjakan ujian di bawah ini.
                 </p>
            </div>
        </div>
@@ -72,7 +76,7 @@ const StudentExamList: React.FC<StudentExamListProps> = ({ username, onStartExam
             <h3 className="text-2xl font-bold text-gray-800 mb-2">Tidak Ada Ujian Aktif</h3>
             <p className="text-gray-600 max-w-md mx-auto">
                 Saat ini tidak ada ujian yang perlu dikerjakan. <br/>
-                Silakan cek kembali nanti atau lihat riwayat ujian di Dashboard.
+                Silakan cek menu <b>Hasil</b> untuk melihat nilai ujian sebelumnya.
             </p>
          </div>
        ) : (

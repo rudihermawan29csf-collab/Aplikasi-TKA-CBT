@@ -6,38 +6,51 @@ interface StudentDashboardProps {
     username: string; // Passed from App to identify student
 }
 
+interface DashboardItem {
+    exam: Exam;
+    category: string;
+    isDone: boolean;
+    score?: number;
+}
+
 const StudentDashboard: React.FC<StudentDashboardProps> = ({ username }) => {
-  const [myExams, setMyExams] = useState<Array<{ exam: Exam, isDone: boolean, score?: number }>>([]);
+  const [myExams, setMyExams] = useState<DashboardItem[]>([]);
   const [studentName, setStudentName] = useState('');
 
   useEffect(() => {
     // 1. Identify Student
     const allStudents = storage.students.getAll();
-    // In a real app, use ID. Here using name as passed from Login
     const me = allStudents.find(s => s.name === username);
     setStudentName(username);
 
     if (me) {
         // 2. Get Exams targeted to my class
         const allExams = storage.exams.getAll();
+        const allPackets = storage.packets.getAll();
+        const allResults = storage.results.getAll();
+        
         const targetedExams = allExams.filter(e => 
             e.classTarget.split(',').includes(me.class)
         );
 
-        // 3. Check Results
-        const allResults = storage.results.getAll();
-        const myResults = allResults.filter(r => r.studentName === me.name);
-
-        const dashboardData = targetedExams.map(exam => {
-            const result = myResults.find(r => r.examId === exam.id);
+        // 3. Map to Dashboard items with Category and Status
+        let dashboardData: DashboardItem[] = targetedExams.map(exam => {
+            const result = allResults.find(r => r.examId === exam.id && r.studentName === me.name);
+            const packet = allPackets.find(p => p.id === exam.packetId);
+            
             return {
                 exam,
+                category: packet?.category || 'Umum',
                 isDone: !!result,
                 score: result?.score
             };
         });
 
-        // Sort: Done exams last, pending first (or by date)
+        // 4. FILTER: Show only Active Exams OR Completed Exams
+        // Hide inactive exams that haven't been taken
+        dashboardData = dashboardData.filter(item => item.exam.isActive || item.isDone);
+
+        // Sort: Active pending first, then Done
         dashboardData.sort((a, b) => {
             if (a.isDone === b.isDone) return 0;
             return a.isDone ? 1 : -1;
@@ -64,9 +77,11 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ username }) => {
        <div className="bg-white/70 backdrop-filter backdrop-blur-xl rounded-3xl shadow-xl border border-white/50 overflow-hidden">
            <div className="p-6 border-b border-gray-200/50 flex justify-between items-center bg-white/30">
                <h3 className="font-bold text-gray-800 text-xl flex items-center gap-2">
-                   <span>📋</span> Riwayat & Status Jadwal Ujian
+                   <span>📋</span> Ujian Aktif & Riwayat Pengerjaan
                </h3>
-               <span className="text-xs bg-white/50 px-3 py-1.5 rounded-full text-gray-600 font-medium border border-white/40 shadow-sm">Semua Jadwal</span>
+               <span className="text-xs bg-white/50 px-3 py-1.5 rounded-full text-gray-600 font-medium border border-white/40 shadow-sm">
+                   Filter Otomatis
+               </span>
            </div>
            
            <div className="overflow-x-auto">
@@ -74,6 +89,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ username }) => {
                     <thead className="bg-gray-100/50 text-gray-600 uppercase text-xs tracking-wider border-b border-gray-200/50">
                         <tr>
                             <th className="p-5 font-bold">Nama Ujian</th>
+                            <th className="p-5 font-bold">Kategori</th>
                             <th className="p-5 font-bold">Jadwal Pelaksanaan</th>
                             <th className="p-5 text-center font-bold">Status</th>
                             <th className="p-5 text-center font-bold">Nilai</th>
@@ -81,12 +97,21 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ username }) => {
                     </thead>
                     <tbody className="divide-y divide-gray-200/50">
                         {myExams.length === 0 ? (
-                            <tr><td colSpan={4} className="p-10 text-center text-gray-500 italic">Belum ada jadwal ujian untuk kelasmu.</td></tr>
+                            <tr><td colSpan={5} className="p-10 text-center text-gray-500 italic">Belum ada ujian aktif atau riwayat pengerjaan.</td></tr>
                         ) : myExams.map((item, idx) => (
                             <tr key={idx} className="hover:bg-white/40 transition-colors group">
                                 <td className="p-5">
                                     <div className="font-bold text-gray-800 text-lg group-hover:text-blue-600 transition-colors">{item.exam.title}</div>
                                     <div className="text-xs text-gray-500 mt-1 font-mono bg-gray-100/50 inline-block px-2 py-0.5 rounded">{item.exam.durationMinutes} Menit</div>
+                                </td>
+                                <td className="p-5">
+                                    <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide border ${
+                                        item.category === 'Numerasi' 
+                                        ? 'bg-orange-100 text-orange-700 border-orange-200' 
+                                        : 'bg-blue-100 text-blue-700 border-blue-200'
+                                    }`}>
+                                        {item.category}
+                                    </span>
                                 </td>
                                 <td className="p-5 text-sm text-gray-600">
                                     <div className="flex flex-col gap-1">
@@ -100,8 +125,8 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ username }) => {
                                             ✅ Selesai
                                         </span>
                                     ) : (
-                                        <span className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-gray-100/80 text-gray-600 rounded-full text-xs font-bold border border-gray-200 shadow-sm backdrop-blur-sm">
-                                            ⏳ Pending
+                                        <span className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-blue-100/80 text-blue-700 rounded-full text-xs font-bold border border-blue-200 shadow-sm backdrop-blur-sm animate-pulse">
+                                            ⚡ Aktif
                                         </span>
                                     )}
                                 </td>
