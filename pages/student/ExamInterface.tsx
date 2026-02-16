@@ -21,6 +21,9 @@ const ExamInterface: React.FC<ExamInterfaceProps> = ({ examId, username, onFinis
   const [violationCount, setViolationCount] = useState(0); // For UI
   const violationRef = useRef(0); // For Logic (avoid stale closures)
   const [doubtful, setDoubtful] = useState<Set<string>>(new Set());
+  
+  // NEW: State for warning overlay
+  const [showWarning, setShowWarning] = useState(false);
 
   // Helper: Fisher-Yates Shuffle
   const shuffleArray = <T,>(array: T[]): T[] => {
@@ -128,16 +131,16 @@ const ExamInterface: React.FC<ExamInterfaceProps> = ({ examId, username, onFinis
             violationRef.current += 1;
             setViolationCount(violationRef.current);
             
-            alert(`⚠️ PERINGATAN PELANGGARAN!\n\nAnda terdeteksi meninggalkan halaman ujian atau membuka tab lain.\nPelanggaran ke-${violationRef.current} dari 3.\n\nJika mencapai 3 kali, ujian akan otomatis dihentikan dan Anda didiskualifikasi.`);
-
-            if (violationRef.current >= 3) {
+            // Trigger Warning Screen immediately
+            if (violationRef.current < 3) {
+                setShowWarning(true);
+            } else {
                 handleSubmitExam(true); // Forced submission due to cheating
             }
         }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    // Optional: window.blur can be added but visibilitychange is more reliable for tab switching
     
     return () => {
         document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -251,7 +254,33 @@ const ExamInterface: React.FC<ExamInterfaceProps> = ({ examId, username, onFinis
   const isCurrentDoubtful = doubtful.has(currentQ.id);
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100 select-none"> {/* Added select-none to discourage copy-paste */}
+    <div className="flex flex-col h-screen bg-gray-100 select-none relative">
+        {/* WARNING OVERLAY */}
+        {showWarning && (
+            <div className="fixed inset-0 z-[100] bg-red-600 flex flex-col items-center justify-center text-white p-8 animate-pulse text-center">
+                 <h1 className="text-6xl font-black mb-4 drop-shadow-lg">⚠️ PERINGATAN!</h1>
+                 <p className="text-2xl font-bold mb-8 drop-shadow-md max-w-2xl leading-relaxed">
+                     Anda terdeteksi meninggalkan halaman ujian.
+                     <br/>Jangan membuka tab lain atau aplikasi lain!
+                 </p>
+                 
+                 <div className="bg-white/20 p-8 rounded-2xl border-4 border-white/50 mb-10 shadow-2xl backdrop-blur-sm">
+                    <p className="text-xl font-bold uppercase tracking-widest mb-2">Pelanggaran Ke</p>
+                    <p className="text-8xl font-black">{violationCount} / 3</p>
+                 </div>
+                 
+                 <button 
+                    onClick={() => setShowWarning(false)} 
+                    className="bg-white text-red-600 px-10 py-4 rounded-full font-black text-xl hover:bg-gray-100 hover:scale-105 transition-all shadow-xl"
+                 >
+                    SAYA MENGERTI & KEMBALI
+                 </button>
+                 <p className="mt-8 text-sm opacity-80 font-mono">
+                     *Jika mencapai 3x pelanggaran, Anda akan didiskualifikasi otomatis.
+                 </p>
+            </div>
+        )}
+
         <div className="bg-white shadow p-4 flex justify-between items-center sticky top-0 z-10">
             <div>
                 <h1 className="font-bold text-lg md:text-xl truncate max-w-[200px] md:max-w-md">{exam.title}</h1>
