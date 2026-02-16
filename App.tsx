@@ -20,27 +20,40 @@ const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [activeExamId, setActiveExamId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [syncStatus, setSyncStatus] = useState<string>('Menghubungkan ke Database...');
+  const [syncStatus, setSyncStatus] = useState<string>('Menyiapkan Aplikasi...');
 
   // INITIAL DATA SYNC
   useEffect(() => {
     const initApp = async () => {
-        // PERBAIKAN: Gunakan getApiUrl() agar mengambil default URL jika localStorage kosong
         const url = getApiUrl(); 
         
-        if (url) {
-            setSyncStatus('Sedang mengunduh data siswa & soal...');
-            // Attempt to sync with Google Sheets
-            const success = await storage.sync();
-            if (success) {
-                setSyncStatus('Data berhasil dimuat.');
-            } else {
-                setSyncStatus('Gagal memuat data. Periksa koneksi internet.');
-            }
+        // Cek apakah data sudah ada di Cache (Local Storage) melalui storageService
+        const cachedStudents = storage.students.getAll();
+        const hasCache = cachedStudents.length > 0;
+
+        if (hasCache) {
+            setSyncStatus('Menggunakan data tersimpan...');
+            // Jika ada cache, kita bisa langsung buka aplikasi (loading sebentar)
+            // Sambil tetap mencoba sync di background
+            storage.sync().then(success => {
+                if(success) console.log("Background sync complete");
+            });
+            setTimeout(() => setIsLoading(false), 500); // Fast load
         } else {
-            setSyncStatus('URL Database belum diatur di kode program.');
+            // Jika tidak ada cache, harus menunggu sync
+            if (url) {
+                setSyncStatus('Mengunduh data terbaru dari server...');
+                const success = await storage.sync();
+                if (success) {
+                    setSyncStatus('Data berhasil dimuat.');
+                } else {
+                    setSyncStatus('Gagal memuat data. Periksa koneksi internet.');
+                }
+            } else {
+                setSyncStatus('URL Database belum diatur.');
+            }
+            setIsLoading(false);
         }
-        setIsLoading(false);
     };
 
     initApp();
