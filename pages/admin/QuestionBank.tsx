@@ -58,11 +58,21 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
 
   // --- Packet Handlers ---
   const handleOpenPacketModal = () => {
-      // If teacher, pre-fill category and lock it
+      // Setup for NEW packet
       setPacketForm({
-          category: teacherCategory || ''
+          category: teacherCategory || '',
+          totalQuestions: 20 // Default value
       });
       setIsPacketModalOpen(true);
+  };
+
+  const handleEditPacket = () => {
+      // Setup for EXISTING packet
+      const current = packets.find(p => p.id === selectedPacketId);
+      if (current) {
+          setPacketForm(current);
+          setIsPacketModalOpen(true);
+      }
   };
 
   const handleSavePacket = () => {
@@ -92,9 +102,15 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
   };
 
   const handleDeletePacket = (id: string) => {
-      if (confirm("Hapus paket soal ini?")) {
+      if (confirm("Hapus paket soal ini beserta seluruh soal di dalamnya?")) {
+          // 1. Delete the packet
           storage.packets.delete(id);
           
+          // 2. Delete all questions associated with this packet
+          const packetQuestions = storage.questions.getByPacketId(id);
+          packetQuestions.forEach(q => storage.questions.delete(q.id));
+
+          // Refresh State
           let allPackets = storage.packets.getAll();
           if (userRole === UserRole.TEACHER && teacherCategory) {
               allPackets = allPackets.filter(p => p.category === teacherCategory);
@@ -133,9 +149,12 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
               }
           }
       } else {
+          // If creating a new question (not editing), find the next available number if not provided
+          const nextNumber = number || (questions.length > 0 ? Math.max(...questions.map(q=>q.number)) + 1 : 1);
+
           setQuestionForm({
               packetId: selectedPacketId!,
-              number: number || questions.length + 1,
+              number: nextNumber,
               type: QuestionType.MULTIPLE_CHOICE,
               text: '',
               stimulus: '',
@@ -171,7 +190,7 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
           ...questionForm, 
           options: finalOptions,
           matchingPairs: finalPairs,
-          number: questionForm.number || questions.length + 1,
+          number: questionForm.number,
           id: questionForm.id || crypto.randomUUID()
       } as Question;
       
@@ -180,6 +199,19 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
       }
       storage.questions.add(qToSave);
       
+      // AUTO UPDATE PACKET TOTAL QUESTIONS
+      // If the question number we just added is greater than the packet's totalQuestions, update the packet
+      if (selectedPacketId && qToSave.number) {
+          const currentPacket = packets.find(p => p.id === selectedPacketId);
+          if (currentPacket && qToSave.number > currentPacket.totalQuestions) {
+              const updatedPacket = { ...currentPacket, totalQuestions: qToSave.number };
+              storage.packets.update(currentPacket.id, updatedPacket);
+              
+              // Update local state so UI updates immediately
+              setPackets(prev => prev.map(p => p.id === currentPacket.id ? updatedPacket : p));
+          }
+      }
+
       setQuestions(storage.questions.getByPacketId(selectedPacketId!));
       setIsQuestionModalOpen(false);
   };
@@ -324,6 +356,12 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
     }
   };
 
+  // Logic for Dynamic Question Toggles
+  const currentPacket = packets.find(p => p.id === selectedPacketId);
+  const maxQuestionNumber = questions.length > 0 ? Math.max(...questions.map(q => q.number)) : 0;
+  // Show toggles based on max of (Packet Settings OR Actual Question Count)
+  const toggleCount = Math.max(currentPacket?.totalQuestions || 0, maxQuestionNumber);
+
   return (
     <div className="grid grid-cols-12 gap-6 h-[calc(100vh-140px)]">
       <div className="col-span-3 bg-white rounded-lg shadow overflow-hidden flex flex-col">
@@ -356,25 +394,58 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
       <div className="col-span-9 bg-white rounded-lg shadow flex flex-col">
         {selectedPacketId ? (
           <>
-            <div className="p-4 border-b flex justify-between items-center">
+            <div className="p-4 border-b flex justify-between items-center bg-gray-50">
               <div>
-                  <h3 className="font-bold text-gray-800">{packets.find(p => p.id === selectedPacketId)?.name}</h3>
-                  <span className="text-xs text-gray-500">{packets.find(p => p.id === selectedPacketId)?.category}</span>
+                  <h3 className="font-bold text-gray-800 text-lg">{packets.find(p => p.id === selectedPacketId)?.name}</h3>
+                  <div className="flex gap-2 items-center">
+                     <span className={`text-[10px] px-2 py-0.5 rounded text-white font-bold ${packets.find(p => p.id === selectedPacketId)?.category === 'Numerasi' ? 'bg-orange-500' : 'bg-blue-600'}`}>
+                        {packets.find(p => p.id === selectedPacketId)?.category}
+                     </span>
+                     <span className="text-xs text-gray-500 font-medium">ID: {selectedPacketId.substring(0,6)}...</span>
+                  </div>
               </div>
               <div className="flex gap-2">
-                  <button onClick={() => handleDeletePacket(selectedPacketId)} className="text-red-600 bg-red-50 px-3 py-1 rounded text-sm hover:bg-red-100">Hapus Paket</button>
-                  <button onClick={() => openAddQuestion()} className="bg-blue-600 text-white px-3 py-1 rounded text-sm font-bold hover:bg-blue-700 shadow">+ Tambah Soal</button>
+                  <button onClick={handleEditPacket} className="bg-yellow-500 text-white px-3 py-1.5 rounded text-sm font-bold hover:bg-yellow-600 shadow-sm flex items-center gap-1">
+                      ✏️ Edit Paket
+                  </button>
+                  <button onClick={() => handleDeletePacket(selectedPacketId)} className="bg-red-500 text-white px-3 py-1.5 rounded text-sm font-bold hover:bg-red-600 shadow-sm flex items-center gap-1">
+                      🗑️ Hapus Paket
+                  </button>
+                  <div className="w-px bg-gray-300 mx-1 h-8 self-center"></div>
+                  <button onClick={() => openAddQuestion()} className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm font-bold hover:bg-blue-700 shadow-md flex items-center gap-1">
+                      + Tambah Soal
+                  </button>
               </div>
             </div>
-            <div className="p-4 bg-gray-100 border-b flex flex-wrap gap-2">
-                 {Array.from({ length: packets.find(p=>p.id===selectedPacketId)?.totalQuestions || 20 }).map((_, i) => {
-                        const num = i + 1;
-                        const hasQ = questions.find(q => q.number === num);
-                        return <button key={num} onClick={() => openAddQuestion(num)} className={`w-8 h-8 rounded border font-bold text-sm ${hasQ ? 'bg-green-500 text-white border-green-600' : 'bg-white text-gray-400 hover:border-blue-400'}`}>{num}</button>
-                 })}
+
+            {/* Questions Toggle Area */}
+            <div className="p-4 bg-gray-100 border-b">
+                 <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                     {Array.from({ length: toggleCount }).map((_, i) => {
+                            const num = i + 1;
+                            const hasQ = questions.find(q => q.number === num);
+                            return (
+                                <button 
+                                    key={num} 
+                                    onClick={() => openAddQuestion(num)} 
+                                    className={`w-9 h-9 rounded-lg border font-bold text-sm transition-all shadow-sm ${
+                                        hasQ 
+                                        ? 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50' 
+                                        : 'bg-gray-200 text-gray-400 border-gray-300 hover:bg-gray-300'
+                                    }`}
+                                    title={hasQ ? "Edit Soal" : "Buat Soal Baru"}
+                                >
+                                    {num}
+                                </button>
+                            )
+                     })}
+                     {/* Add button at the end of toggle list */}
+                     <button onClick={() => openAddQuestion()} className="w-9 h-9 rounded-lg border border-dashed border-blue-400 text-blue-600 bg-blue-50 font-bold hover:bg-blue-100" title="Tambah Nomor Baru">+</button>
+                 </div>
             </div>
+
             <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-50/30">
-              {questions.length === 0 && <div className="text-center text-gray-400 py-10 italic">Belum ada butir soal. Silakan tambah soal.</div>}
+              {questions.length === 0 && <div className="text-center text-gray-400 py-10 italic">Belum ada butir soal. Silakan klik nomor atau tambah soal.</div>}
               {questions.sort((a,b)=>a.number-b.number).map(q => (
                 <div key={q.id} className="border rounded-xl p-6 bg-white shadow-sm relative group hover:shadow-md transition-shadow">
                   <div className="absolute top-4 right-4 hidden group-hover:flex gap-2">
@@ -400,7 +471,7 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
       {isPacketModalOpen && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
               <div className="bg-white p-6 rounded-xl w-96 space-y-4 shadow-2xl">
-                  <h3 className="font-bold text-lg text-gray-800 border-b pb-2">Buat Paket Soal Baru</h3>
+                  <h3 className="font-bold text-lg text-gray-800 border-b pb-2">{packetForm.id ? 'Edit Paket Soal' : 'Buat Paket Soal Baru'}</h3>
                   <div>
                       <label className="text-xs font-bold text-gray-500">Nama Paket</label>
                       <input className="w-full border p-2 rounded mt-1" placeholder="Contoh: UTS Bahasa Indonesia" value={packetForm.name||''} onChange={e=>setPacketForm({...packetForm, name:e.target.value})} />
@@ -420,8 +491,9 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
                        {teacherCategory && <p className="text-[10px] text-blue-600 mt-1">* Kategori dikunci untuk akun Guru {teacherCategory}</p>}
                   </div>
                   <div>
-                      <label className="text-xs font-bold text-gray-500">Jumlah Soal</label>
+                      <label className="text-xs font-bold text-gray-500">Jumlah Soal (Estimasi)</label>
                       <input type="number" className="w-full border p-2 rounded mt-1" placeholder="Total nomor" value={packetForm.totalQuestions||''} onChange={e=>setPacketForm({...packetForm, totalQuestions:parseInt(e.target.value)})} />
+                      <p className="text-[10px] text-gray-400 mt-1">* Jumlah ini akan otomatis bertambah jika Anda membuat soal dengan nomor lebih besar.</p>
                   </div>
                   <div className="flex justify-end gap-2 mt-4">
                       <button onClick={()=>setIsPacketModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Batal</button>
