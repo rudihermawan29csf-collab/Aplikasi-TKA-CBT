@@ -56,12 +56,36 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
     }
   }, [selectedPacketId, userRole, username]);
 
+  // --- Helper to Auto Update Packet Count ---
+  const updatePacketQuestionCount = (packetId: string) => {
+      const packetQuestions = storage.questions.getByPacketId(packetId);
+      
+      // Calculate new total based on the highest question number present
+      // This ensures if you have soal 1, 2, 4 -> Total is 4 (so loop works correctly)
+      const maxNumber = packetQuestions.length > 0 
+          ? Math.max(...packetQuestions.map(q => q.number)) 
+          : 0;
+      
+      // Alternative: Just use length if strict sequence isn't required
+      // const count = packetQuestions.length;
+
+      const currentPacket = storage.packets.getAll().find(p => p.id === packetId);
+      
+      if (currentPacket && currentPacket.totalQuestions !== maxNumber) {
+          const updatedPacket = { ...currentPacket, totalQuestions: maxNumber };
+          storage.packets.update(packetId, updatedPacket);
+          
+          // Update local state immediately
+          setPackets(prev => prev.map(p => p.id === packetId ? updatedPacket : p));
+      }
+  };
+
   // --- Packet Handlers ---
   const handleOpenPacketModal = () => {
       // Setup for NEW packet
       setPacketForm({
           category: teacherCategory || '',
-          totalQuestions: 20 // Default value
+          totalQuestions: 0 // Default value
       });
       setIsPacketModalOpen(true);
   };
@@ -200,16 +224,8 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
       storage.questions.add(qToSave);
       
       // AUTO UPDATE PACKET TOTAL QUESTIONS
-      // If the question number we just added is greater than the packet's totalQuestions, update the packet
-      if (selectedPacketId && qToSave.number) {
-          const currentPacket = packets.find(p => p.id === selectedPacketId);
-          if (currentPacket && qToSave.number > currentPacket.totalQuestions) {
-              const updatedPacket = { ...currentPacket, totalQuestions: qToSave.number };
-              storage.packets.update(currentPacket.id, updatedPacket);
-              
-              // Update local state so UI updates immediately
-              setPackets(prev => prev.map(p => p.id === currentPacket.id ? updatedPacket : p));
-          }
+      if (selectedPacketId) {
+          updatePacketQuestionCount(selectedPacketId);
       }
 
       setQuestions(storage.questions.getByPacketId(selectedPacketId!));
@@ -219,6 +235,12 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
   const handleDeleteQuestion = (id: string) => {
       if (confirm("Hapus soal ini?")) {
           storage.questions.delete(id);
+          
+          // AUTO UPDATE PACKET TOTAL QUESTIONS
+          if (selectedPacketId) {
+              updatePacketQuestionCount(selectedPacketId);
+          }
+          
           setQuestions(storage.questions.getByPacketId(selectedPacketId!));
       }
   };
@@ -491,9 +513,15 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
                        {teacherCategory && <p className="text-[10px] text-blue-600 mt-1">* Kategori dikunci untuk akun Guru {teacherCategory}</p>}
                   </div>
                   <div>
-                      <label className="text-xs font-bold text-gray-500">Jumlah Soal (Estimasi)</label>
-                      <input type="number" className="w-full border p-2 rounded mt-1" placeholder="Total nomor" value={packetForm.totalQuestions||''} onChange={e=>setPacketForm({...packetForm, totalQuestions:parseInt(e.target.value)})} />
-                      <p className="text-[10px] text-gray-400 mt-1">* Jumlah ini akan otomatis bertambah jika Anda membuat soal dengan nomor lebih besar.</p>
+                      <label className="text-xs font-bold text-gray-500">Jumlah Soal (Otomatis)</label>
+                      <input 
+                        type="number" 
+                        className="w-full border p-2 rounded mt-1 bg-gray-100 text-gray-500 cursor-not-allowed" 
+                        placeholder="Total nomor" 
+                        value={packetForm.totalQuestions||0} 
+                        readOnly 
+                      />
+                      <p className="text-[10px] text-blue-600 mt-1">* Jumlah soal akan otomatis terupdate saat Anda menambahkan soal.</p>
                   </div>
                   <div className="flex justify-end gap-2 mt-4">
                       <button onClick={()=>setIsPacketModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Batal</button>
