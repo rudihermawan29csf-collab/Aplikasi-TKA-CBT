@@ -26,25 +26,51 @@ const CACHE = {
   Results: [] as Result[]
 };
 
-export const getApiUrl = () => localStorage.getItem(KEYS.API_URL) || '';
-export const setApiUrl = (url: string) => localStorage.setItem(KEYS.API_URL, url);
+// Helper for generating IDs safely in all environments
+const generateId = (): string => {
+    // Try native crypto UUID first (modern browsers, secure context)
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    // Fallback for older browsers or insecure contexts (http)
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+};
+
+export const getApiUrl = () => {
+    let url = localStorage.getItem(KEYS.API_URL) || '';
+    // Basic cleanup ensuring no trailing slash unless it's the only char (unlikely)
+    if (url.length > 1 && url.endsWith('/')) {
+        url = url.slice(0, -1);
+    }
+    return url;
+};
+export const setApiUrl = (url: string) => localStorage.setItem(KEYS.API_URL, url.trim());
 
 // Helper to send data to GAS
-// We use 'text/plain' to avoid CORS Preflight (OPTIONS) requests which GAS doesn't handle well.
 const sendToApi = async (action: 'create' | 'update' | 'delete', sheet: string, payload: any, id?: string) => {
     const url = getApiUrl();
     if (!url) return; 
 
     try {
+        // IMPORTANT: We use mode: 'no-cors' for POST requests.
+        // Google Apps Script returns a 302 Redirect for POSTs, which standard fetch follows.
+        // However, the redirect target often lacks CORS headers for the browser to read the response.
+        // 'no-cors' allows the request to be sent (so the DB updates), but we receive an opaque response.
+        // This effectively suppresses "Failed to fetch" errors caused by CORS on the response, 
+        // while still executing the server-side script.
         await fetch(url, {
             method: 'POST',
-            // By using text/plain, we skip the Preflight check. GAS will still parse it as string.
-            // We parse it back to JSON inside GAS doPost(e).postData.contents
-            headers: { 'Content-Type': 'text/plain' }, 
+            mode: 'no-cors', 
+            headers: { 
+                'Content-Type': 'text/plain' 
+            }, 
             body: JSON.stringify({ action, sheet, payload, id })
         });
     } catch (e) {
-        console.error("API Error", e);
+        console.error("API Error (Post)", e);
     }
 };
 
@@ -57,7 +83,15 @@ export const storage = {
       }
 
       try {
-          const response = await fetch(`${url}?action=sync`);
+          // For GET, we need the data, so we cannot use 'no-cors'.
+          // If this fails, it is likely that the Web App deployment permission is not set to "Anyone".
+          const response = await fetch(`${url}?action=sync&t=${Date.now()}`);
+          
+          if (!response.ok) {
+              console.error(`Sync Error: HTTP ${response.status}`);
+              return false;
+          }
+
           const json = await response.json();
           
           if (json.status === 'success' && json.data) {
@@ -98,7 +132,7 @@ export const storage = {
   students: {
     getAll: () => CACHE.Students,
     add: (item: Student) => {
-      const newItem = { ...item, id: item.id || crypto.randomUUID() };
+      const newItem = { ...item, id: item.id || generateId() };
       CACHE.Students.push(newItem);
       sendToApi('create', 'Students', newItem);
     },
@@ -117,7 +151,7 @@ export const storage = {
   packets: {
     getAll: () => CACHE.Packets,
     add: (item: Packet) => {
-      const newItem = { ...item, id: item.id || crypto.randomUUID() };
+      const newItem = { ...item, id: item.id || generateId() };
       CACHE.Packets.push(newItem);
       sendToApi('create', 'Packets', newItem);
     },
@@ -136,7 +170,7 @@ export const storage = {
   questions: {
     getAll: () => CACHE.Questions,
     add: (item: Question) => {
-      const newItem = { ...item, id: item.id || crypto.randomUUID() };
+      const newItem = { ...item, id: item.id || generateId() };
       CACHE.Questions.push(newItem);
       sendToApi('create', 'Questions', newItem);
     },
@@ -151,7 +185,7 @@ export const storage = {
   exams: {
     getAll: () => CACHE.Exams,
     add: (item: Exam) => {
-      const newItem = { ...item, id: item.id || crypto.randomUUID() };
+      const newItem = { ...item, id: item.id || generateId() };
       CACHE.Exams.push(newItem);
       sendToApi('create', 'Exams', newItem);
     },
@@ -170,7 +204,7 @@ export const storage = {
   results: {
     getAll: () => CACHE.Results,
     add: (item: Result) => {
-      const newItem = { ...item, id: item.id || crypto.randomUUID() };
+      const newItem = { ...item, id: item.id || generateId() };
       CACHE.Results.push(newItem);
       sendToApi('create', 'Results', newItem);
     }

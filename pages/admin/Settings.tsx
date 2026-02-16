@@ -16,6 +16,7 @@ const Settings: React.FC = () => {
   
   const [apiUrl, setLocalApiUrl] = useState('');
   const [saved, setSaved] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'checking' | 'success' | 'error'>('idle');
   const codeRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
@@ -29,17 +30,27 @@ const Settings: React.FC = () => {
 
   const handleSave = () => {
     storage.settings.save(settings);
-    // Trim whitespace from URL just in case
-    const cleanUrl = apiUrl.trim();
+    // Trim whitespace and ensure valid formatting
+    let cleanUrl = apiUrl.trim();
+    if(cleanUrl && !cleanUrl.startsWith('http')) {
+        alert("URL harus diawali dengan https://");
+        return;
+    }
+    
     setApiUrl(cleanUrl); 
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
     
-    // Trigger sync to verify connection immediately (optional)
+    // Trigger sync
     if(cleanUrl) {
+        setConnectionStatus('checking');
         storage.sync().then(success => {
-            if(success) alert("Koneksi ke Database Berhasil!");
-            else alert("Pengaturan tersimpan, namun Gagal terkoneksi ke URL tersebut. Pastikan URL benar dan Deployment sudah 'Anyone' (Siapa Saja).");
+            if(success) {
+                setConnectionStatus('success');
+            } else {
+                setConnectionStatus('error');
+                alert("Gagal terkoneksi! Pastikan:\n1. URL benar (berakhiran /exec)\n2. Deployment Apps Script diatur 'Anyone' (Siapa Saja) sebagai yang memiliki akses.");
+            }
         });
     }
   };
@@ -68,18 +79,27 @@ const Settings: React.FC = () => {
       </div>
 
       {/* API Connection Section */}
-      <div className="bg-blue-50 border-l-4 border-blue-600 p-6 rounded-lg shadow">
-          <h3 className="text-lg font-bold mb-2 text-blue-800">Koneksi Database (Google Apps Script)</h3>
+      <div className={`border-l-4 p-6 rounded-lg shadow transition-colors ${
+          connectionStatus === 'error' ? 'bg-red-50 border-red-600' :
+          connectionStatus === 'success' ? 'bg-green-50 border-green-600' :
+          'bg-blue-50 border-blue-600'
+      }`}>
+          <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
+              Koneksi Database (Google Apps Script)
+              {connectionStatus === 'checking' && <span className="text-sm font-normal animate-pulse">Checking...</span>}
+              {connectionStatus === 'success' && <span className="text-sm font-bold text-green-700">✅ Terhubung</span>}
+              {connectionStatus === 'error' && <span className="text-sm font-bold text-red-700">❌ Gagal</span>}
+          </h3>
           <p className="text-sm text-gray-600 mb-4">
               Masukkan URL Web App dari Google Apps Script agar aplikasi ini bisa online dan menyimpan data ke Spreadsheet.
           </p>
           <div className="mb-4">
-             <label className="text-xs font-bold text-blue-800 uppercase block mb-1">URL Web App</label>
+             <label className="text-xs font-bold text-gray-500 uppercase block mb-1">URL Web App</label>
              <input 
                 type="text" 
                 value={apiUrl}
                 onChange={e => setLocalApiUrl(e.target.value)}
-                className="w-full border border-blue-300 rounded-md p-3 font-mono text-sm focus:ring-blue-500 focus:border-blue-500 text-gray-700"
+                className="w-full border border-gray-300 rounded-md p-3 font-mono text-sm focus:ring-blue-500 focus:border-blue-500 text-gray-700"
                 placeholder="https://script.google.com/macros/s/..../exec"
             />
           </div>
