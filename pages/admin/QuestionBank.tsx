@@ -606,7 +606,7 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
                        {(previewQuestion.stimulus.startsWith('http') || previewQuestion.stimulus.startsWith('data:')) ? <img src={previewQuestion.stimulus} className="max-w-full mx-auto rounded" /> : <div className="whitespace-pre-wrap leading-relaxed">{previewQuestion.stimulus}</div>}
                    </div>
                )}
-               <div className="mb-6 font-medium text-xl text-gray-800">{previewQuestion.text}</div>
+               <div className="mb-6 font-medium text-xl text-gray-800 whitespace-pre-wrap">{previewQuestion.text}</div>
                <div className="bg-blue-50/50 p-6 rounded-xl border border-blue-100">{renderPreviewOptions(previewQuestion)}</div>
                <div className="mt-6 flex justify-end">
                    <button onClick={() => setPreviewQuestion(null)} className="bg-gray-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-black">Tutup Preview</button>

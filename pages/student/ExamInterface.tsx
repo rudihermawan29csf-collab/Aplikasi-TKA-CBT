@@ -310,7 +310,7 @@ const ExamInterface: React.FC<ExamInterfaceProps> = ({ examId, username, onFinis
                     </div>
                 )}
                 
-                <div className="text-xl md:text-2xl font-medium mb-8 text-gray-900 leading-snug">{currentQ.text}</div>
+                <div className="text-xl md:text-2xl font-medium mb-8 text-gray-900 leading-snug whitespace-pre-wrap">{currentQ.text}</div>
 
                 <div className="space-y-4">
                     {currentQ.type === QuestionType.MULTIPLE_CHOICE && JSON.parse(currentQ.options).map((opt: string, idx: number) => (
