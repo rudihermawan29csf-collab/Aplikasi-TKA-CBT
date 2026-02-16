@@ -10,9 +10,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [role, setRole] = useState<UserRole>(UserRole.STUDENT);
   const [settings, setSettings] = useState<SchoolSettings | null>(null);
   
-  // State for Admin/Teacher
-  const [username, setUsername] = useState('');
+  // State for Admin
   const [password, setPassword] = useState('');
+
+  // State for Teacher
+  const [teacherCategory, setTeacherCategory] = useState<'Literasi' | 'Numerasi'>('Literasi');
 
   // State for Student
   const [students, setStudents] = useState<Student[]>([]);
@@ -36,7 +38,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       setSelectedStudentId('');
     } else {
       // Clear inputs for other roles
-      setUsername('');
       setPassword('');
     }
   }, [role]);
@@ -54,16 +55,21 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       }
     } 
     else if (role === UserRole.TEACHER) {
-      // Teacher credentials check
-      const user = username.toLowerCase().trim();
+      // Teacher credentials check based on selected category
       const pass = password.trim();
 
-      if (user === 'guru literasi' && pass === settings.teacherLiterasiPassword) {
-        onLogin(role, 'Guru Literasi');
-      } else if (user === 'guru numerasi' && pass === settings.teacherNumerasiPassword) {
-        onLogin(role, 'Guru Numerasi');
-      } else {
-        alert('Username atau Password salah!');
+      if (teacherCategory === 'Literasi') {
+        if (pass === settings.teacherLiterasiPassword) {
+            onLogin(role, 'Guru Literasi');
+        } else {
+            alert('Password Guru Literasi salah!');
+        }
+      } else if (teacherCategory === 'Numerasi') {
+        if (pass === settings.teacherNumerasiPassword) {
+            onLogin(role, 'Guru Numerasi');
+        } else {
+            alert('Password Guru Numerasi salah!');
+        }
       }
     } 
     else if (role === UserRole.STUDENT) {
@@ -188,15 +194,22 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                     <>
                     {role === UserRole.TEACHER && (
                         <div className="space-y-1 group">
-                             <label className="text-white text-[10px] font-bold ml-1 uppercase tracking-wider opacity-90">Username</label>
-                             <input
-                                type="text"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                className="w-full px-4 py-3 bg-black/20 border border-white/10 rounded-xl focus:ring-2 focus:ring-white/50 focus:bg-black/30 outline-none text-white placeholder-white/50 backdrop-blur-sm transition-all font-medium"
-                                placeholder="Username Guru"
-                                required
-                            />
+                             <label className="text-white text-[10px] font-bold ml-1 uppercase tracking-wider opacity-90">Kategori / Mata Pelajaran</label>
+                             <div className="relative">
+                                <select
+                                    value={teacherCategory}
+                                    onChange={(e) => setTeacherCategory(e.target.value as 'Literasi' | 'Numerasi')}
+                                    className="w-full px-4 py-3 bg-black/20 border border-white/10 rounded-xl focus:ring-2 focus:ring-white/50 focus:bg-black/30 outline-none text-white placeholder-white/50 backdrop-blur-sm transition-all appearance-none cursor-pointer hover:bg-black/30 font-medium"
+                                >
+                                    <option value="Literasi" className="text-gray-900 bg-white">Guru Literasi</option>
+                                    <option value="Numerasi" className="text-gray-900 bg-white">Guru Numerasi</option>
+                                </select>
+                                <div className="absolute right-4 top-3.5 pointer-events-none text-white/80">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                    </svg>
+                                </div>
+                            </div>
                         </div>
                     )}
                     

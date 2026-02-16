@@ -133,7 +133,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ username }) => {
                                 <td className="p-5 text-center">
                                     {item.isDone ? (
                                         <div className="inline-block px-3 py-1 bg-blue-50/50 rounded-lg border border-blue-100">
-                                            <span className="text-2xl font-extrabold text-blue-600">{item.score}</span>
+                                            <span className="text-2xl font-extrabold text-blue-600">{Math.round(item.score || 0)}</span>
                                         </div>
                                     ) : (
                                         <span className="text-gray-300 font-bold text-xl">-</span>
