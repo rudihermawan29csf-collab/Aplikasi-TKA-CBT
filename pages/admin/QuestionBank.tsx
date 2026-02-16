@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { storage } from '../../services/storageService';
 import { Packet, Question, QuestionType, UserRole } from '../../types';
 
@@ -31,6 +32,7 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
   
   const [previewQuestion, setPreviewQuestion] = useState<Question | null>(null);
   const [stimulusType, setStimulusType] = useState<'text' | 'image'>('text');
+  const [fileInputKey, setFileInputKey] = useState(Date.now()); // Reset input file
 
   // Specific state for True/False (Benar/Salah Tabel)
   const [bsOptions, setBsOptions] = useState<string[]>(["Benar", "Salah"]);
@@ -92,6 +94,116 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
               setPackets(prev => prev.map(p => p.id === packetId ? updatedPacket : p));
           }
       }
+  };
+
+  // --- EXCEL HANDLERS ---
+  const handleDownloadTemplate = () => {
+    const templateData = [
+        {
+            "Nomor": 1,
+            "Tipe (PG/BS)": "PG",
+            "Stimulus": "Tulis wacana atau link gambar disini...",
+            "Pertanyaan": "Contoh Pertanyaan Pilihan Ganda?",
+            "Opsi Jawaban (Pisahkan dengan titik koma ;)": "Opsi A; Opsi B; Opsi C; Opsi D",
+            "Kunci Jawaban (Angka 0=A, 1=B, dst)": 0
+        },
+        {
+            "Nomor": 2,
+            "Tipe (PG/BS)": "BS",
+            "Stimulus": "Stimulus Soal Benar Salah",
+            "Pertanyaan": "Pilih Benar atau Salah",
+            "Opsi Jawaban (Pisahkan dengan titik koma ;)": "Pernyataan 1; Pernyataan 2",
+            "Kunci Jawaban (Angka 0=A, 1=B, dst)": "a;b"
+        }
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(templateData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Template Soal");
+    XLSX.writeFile(workbook, "Template_Import_Soal_CBT.xlsx");
+  };
+
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedPacketId) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws);
+
+        if (data.length > 0) {
+            if (confirm(`Ditemukan ${data.length} soal. Import sekarang?`)) {
+                let importedCount = 0;
+                
+                // Get existing packet data to know category
+                const pkt = packets.find(p => p.id === selectedPacketId);
+
+                data.forEach((row: any) => {
+                    try {
+                        const typeRaw = row["Tipe (PG/BS)"] || "PG";
+                        const type = typeRaw.toUpperCase() === "BS" ? QuestionType.TRUE_FALSE : QuestionType.MULTIPLE_CHOICE;
+                        
+                        const optionsRaw = row["Opsi Jawaban (Pisahkan dengan titik koma ;)"] || "";
+                        const optionsArray = optionsRaw.toString().split(';').map((s: string) => s.trim()).filter((s: string) => s !== "");
+                        
+                        let finalOptions = '[]';
+                        let matchingPairs = '[]';
+                        let correctAnswerIndex = 0;
+                        let correctAnswerIndices = '[]';
+
+                        if (type === QuestionType.TRUE_FALSE) {
+                            // Logic Import BS
+                            // Asumsi input excel: Opsi Jawaban = "Pernyataan 1; Pernyataan 2"
+                            // Kunci = "a;b" (a=Benar, b=Salah)
+                            finalOptions = JSON.stringify(["Benar", "Salah"]);
+                            const keys = (row["Kunci Jawaban (Angka 0=A, 1=B, dst)"] || "").toString().split(';');
+                            
+                            const pairs = optionsArray.map((opt: string, idx: number) => ({
+                                left: opt,
+                                right: keys[idx]?.trim()?.toLowerCase() || 'a'
+                            }));
+                            matchingPairs = JSON.stringify(pairs);
+
+                        } else {
+                            // Logic Import PG
+                            finalOptions = JSON.stringify(optionsArray);
+                            correctAnswerIndex = parseInt(row["Kunci Jawaban (Angka 0=A, 1=B, dst)"] || "0");
+                        }
+
+                        const newQ: Question = {
+                            id: crypto.randomUUID(),
+                            packetId: selectedPacketId,
+                            number: parseInt(row["Nomor"] || (importedCount + 1).toString()),
+                            type: type,
+                            stimulus: row["Stimulus"] || "",
+                            text: row["Pertanyaan"] || "",
+                            options: finalOptions,
+                            correctAnswerIndex: correctAnswerIndex,
+                            correctAnswerIndices: correctAnswerIndices,
+                            matchingPairs: matchingPairs,
+                            category: pkt?.category || 'Umum',
+                            image: ''
+                        };
+
+                        storage.questions.add(newQ);
+                        importedCount++;
+                    } catch (err) {
+                        console.error("Gagal import baris:", row, err);
+                    }
+                });
+
+                alert(`Berhasil mengimport ${importedCount} soal.`);
+                updatePacketMetadata(selectedPacketId);
+                setQuestions(storage.questions.getByPacketId(selectedPacketId));
+                setFileInputKey(Date.now()); // Clear input
+            }
+        }
+    };
+    reader.readAsBinaryString(file);
   };
 
   // --- Packet Handlers ---
@@ -431,7 +543,7 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
       <div className="col-span-9 bg-white rounded-lg shadow flex flex-col">
         {selectedPacketId ? (
           <>
-            <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+            <div className="p-4 border-b flex flex-col md:flex-row justify-between items-center bg-gray-50 gap-4">
               <div>
                   <h3 className="font-bold text-gray-800 text-lg">{packets.find(p => p.id === selectedPacketId)?.name}</h3>
                   <div className="flex gap-2 items-center">
@@ -441,16 +553,38 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
                      <span className="text-xs text-gray-500 font-medium">ID: {selectedPacketId.substring(0,6)}...</span>
                   </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2 justify-end">
+                  {/* EXCEL ACTIONS */}
+                  <div className="flex items-center gap-1">
+                    <button 
+                        onClick={handleDownloadTemplate}
+                        className="bg-green-600 text-white px-3 py-1.5 rounded text-sm font-bold hover:bg-green-700 shadow-sm flex items-center gap-1"
+                        title="Download Template Excel"
+                    >
+                        ⬇️ Tpl
+                    </button>
+                    <label className="bg-green-500 text-white px-3 py-1.5 rounded text-sm font-bold hover:bg-green-600 shadow-sm flex items-center gap-1 cursor-pointer">
+                        📂 Import
+                        <input 
+                            key={fileInputKey}
+                            type="file" 
+                            accept=".xlsx, .xls" 
+                            className="hidden" 
+                            onChange={handleImportExcel}
+                        />
+                    </label>
+                  </div>
+
+                  <div className="w-px bg-gray-300 mx-1 h-8 self-center"></div>
+
                   <button onClick={handleEditPacket} className="bg-yellow-500 text-white px-3 py-1.5 rounded text-sm font-bold hover:bg-yellow-600 shadow-sm flex items-center gap-1">
-                      ✏️ Edit Paket
+                      ✏️ Edit
                   </button>
                   <button onClick={() => handleDeletePacket(selectedPacketId)} className="bg-red-500 text-white px-3 py-1.5 rounded text-sm font-bold hover:bg-red-600 shadow-sm flex items-center gap-1">
-                      🗑️ Hapus Paket
+                      🗑️ Hapus
                   </button>
-                  <div className="w-px bg-gray-300 mx-1 h-8 self-center"></div>
                   <button onClick={() => openAddQuestion()} className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm font-bold hover:bg-blue-700 shadow-md flex items-center gap-1">
-                      + Tambah Soal
+                      + Soal
                   </button>
               </div>
             </div>
@@ -482,7 +616,7 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-50/30">
-              {questions.length === 0 && <div className="text-center text-gray-400 py-10 italic">Belum ada butir soal. Silakan klik nomor atau tambah soal.</div>}
+              {questions.length === 0 && <div className="text-center text-gray-400 py-10 italic">Belum ada butir soal. Silakan klik nomor atau import soal.</div>}
               {questions.sort((a,b)=>a.number-b.number).map(q => (
                 <div key={q.id} className="border rounded-xl p-6 bg-white shadow-sm relative group hover:shadow-md transition-shadow">
                   <div className="absolute top-4 right-4 hidden group-hover:flex gap-2">
