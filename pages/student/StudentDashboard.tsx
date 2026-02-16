@@ -35,7 +35,13 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ username }) => {
 
         // 3. Map to Dashboard items with Category and Status
         let dashboardData: DashboardItem[] = targetedExams.map(exam => {
-            const result = allResults.find(r => r.examId === exam.id && r.studentName === me.name);
+            // FIX: Get all results for this exam, sort by latest timestamp
+            const studentResults = allResults.filter(r => r.examId === exam.id && r.studentName === me.name);
+            
+            // Sort descending by timestamp to ensure we get the latest attempt
+            studentResults.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            
+            const result = studentResults[0]; // Take the latest result
             const packet = allPackets.find(p => p.id === exam.packetId);
             
             return {
