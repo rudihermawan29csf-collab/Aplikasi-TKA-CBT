@@ -82,7 +82,7 @@ const generateId = (): string => {
 };
 
 // Default URL (Fallback only)
-const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwNRx96MxyTp7Vpsro2iF8UeZ-DQgWxREkKuallL5iR1H--LQNPtpe2jBXsZIKdkiTrug/exec';
+const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwJiR-CIk5UB_zhsoPxJ-IrAZ53kzhjyFLCxkG1Sdh9a6hHZxdcLuPeEBkrwkVwLsMIFw/exec';
 
 export const getApiUrl = () => {
     // Priority: 1. Hardcoded, 2. LocalStorage, 3. Default
