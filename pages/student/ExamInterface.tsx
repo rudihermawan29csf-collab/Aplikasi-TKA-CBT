@@ -22,12 +22,87 @@ const ExamInterface: React.FC<ExamInterfaceProps> = ({ examId, username, onFinis
   const violationRef = useRef(0); // For Logic (avoid stale closures)
   const [doubtful, setDoubtful] = useState<Set<string>>(new Set());
 
+  // Helper: Fisher-Yates Shuffle
+  const shuffleArray = <T,>(array: T[]): T[] => {
+      const newArray = [...array];
+      for (let i = newArray.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+      }
+      return newArray;
+  };
+
   useEffect(() => {
     const e = storage.exams.getAll().find(ex => ex.id === examId);
     if (e) {
       setExam(e);
-      const qs = storage.questions.getByPacketId(e.packetId);
-      setQuestions(qs);
+      let rawQs = storage.questions.getByPacketId(e.packetId);
+      
+      // 1. ACAK URUTAN SOAL
+      // Kita clone deep agar tidak merusak urutan asli di storage
+      let shuffledQs = shuffleArray(rawQs).map(q => ({...q}));
+
+      // 2. ACAK OPSI JAWABAN (Untuk PG dan PG Kompleks)
+      shuffledQs = shuffledQs.map(q => {
+          // Hanya acak jika PG atau PG Kompleks
+          if (q.type === QuestionType.MULTIPLE_CHOICE) {
+              try {
+                  const originalOptions = JSON.parse(q.options || '[]');
+                  if(originalOptions.length > 0) {
+                      // Map opsi dengan index aslinya
+                      const optionsWithIndex: { text: string; originalIdx: number }[] = originalOptions.map((opt: string, idx: number) => ({
+                          text: opt,
+                          originalIdx: idx
+                      }));
+                      
+                      // Acak opsi
+                      const shuffledOptions = shuffleArray(optionsWithIndex);
+                      
+                      // Cari index baru dari jawaban yang benar
+                      // Jawaban benar adalah index di mana originalIdx == q.correctAnswerIndex
+                      const newCorrectIndex = shuffledOptions.findIndex(item => item.originalIdx === q.correctAnswerIndex);
+                      
+                      // Update question object
+                      return {
+                          ...q,
+                          options: JSON.stringify(shuffledOptions.map(item => item.text)),
+                          correctAnswerIndex: newCorrectIndex
+                      };
+                  }
+              } catch(err) { console.error("Error shuffling PG", err); }
+          }
+          else if (q.type === QuestionType.COMPLEX_MULTIPLE_CHOICE) {
+               try {
+                   const originalOptions = JSON.parse(q.options || '[]');
+                   const correctIndices = JSON.parse(q.correctAnswerIndices || '[]');
+                   
+                   if(originalOptions.length > 0) {
+                       const optionsWithIndex: { text: string; originalIdx: number }[] = originalOptions.map((opt: string, idx: number) => ({
+                           text: opt,
+                           originalIdx: idx
+                       }));
+
+                       const shuffledOptions = shuffleArray(optionsWithIndex);
+
+                       // Mapping index baru untuk kunci jawaban
+                       // Kita cari item yang originalIdx-nya ada di daftar kunci lama, lalu ambil index barunya
+                       const newCorrectIndices = shuffledOptions
+                           .map((item, newIdx) => correctIndices.includes(item.originalIdx) ? newIdx : -1)
+                           .filter((idx): idx is number => idx !== -1);
+                       
+                       return {
+                           ...q,
+                           options: JSON.stringify(shuffledOptions.map(item => item.text)),
+                           correctAnswerIndices: JSON.stringify(newCorrectIndices)
+                       };
+                   }
+               } catch(err) { console.error("Error shuffling PGK", err); }
+          }
+          
+          return q; // Return as is for Essay, Matching, True/False (usually fixed order)
+      });
+
+      setQuestions(shuffledQs);
       setTimeLeft(e.durationMinutes * 60);
     }
   }, [examId]);
@@ -122,6 +197,10 @@ const ExamInterface: React.FC<ExamInterfaceProps> = ({ examId, username, onFinis
     const allStudents = storage.students.getAll();
     const me = allStudents.find(s => s.name === username);
 
+    // Note: Since we shuffled options, the 'answers' stored are based on the shuffled indices.
+    // For advanced analytics later, you might want to store the question text or remap back,
+    // but for simple scoring, storing the score is sufficient.
+    
     storage.results.add({
         id: Date.now().toString(),
         examId: examId,

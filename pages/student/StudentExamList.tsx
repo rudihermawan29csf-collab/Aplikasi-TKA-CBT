@@ -8,7 +8,7 @@ interface StudentExamListProps {
 }
 
 const StudentExamList: React.FC<StudentExamListProps> = ({ username, onStartExam }) => {
-  const [availableExams, setAvailableExams] = useState<Array<{ exam: Exam, packet?: Packet }>>([]);
+  const [availableExams, setAvailableExams] = useState<Array<{ exam: Exam, packet?: Packet, isTaken: boolean, lastScore?: number }>>([]);
 
   useEffect(() => {
     const allStudents = storage.students.getAll();
@@ -27,13 +27,22 @@ const StudentExamList: React.FC<StudentExamListProps> = ({ username, onStartExam
             const endDate = new Date(e.scheduledEnd);
             const isWithinTime = startDate <= now && endDate >= now;
             
-            const isTaken = allResults.some(r => r.examId === e.id && r.studentName === me.name);
+            // Kita HAPUS filter !isTaken agar siswa bisa melihat ujian yang sudah dikerjakan
+            return isTargetClass && isActive && isWithinTime;
+        }).map(exam => {
+            // Cek apakah sudah pernah mengerjakan
+            const pastResults = allResults.filter(r => r.examId === exam.id && r.studentName === me.name);
+            const isTaken = pastResults.length > 0;
+            // Ambil nilai terakhir jika ada
+            const lastScore = isTaken ? pastResults[pastResults.length - 1].score : undefined;
 
-            return isTargetClass && isActive && isWithinTime && !isTaken;
-        }).map(exam => ({
-            exam,
-            packet: allPackets.find(p => p.id === exam.packetId)
-        }));
+            return {
+                exam,
+                packet: allPackets.find(p => p.id === exam.packetId),
+                isTaken,
+                lastScore
+            };
+        });
 
         setAvailableExams(filtered);
     }
@@ -81,14 +90,14 @@ const StudentExamList: React.FC<StudentExamListProps> = ({ username, onStartExam
          </div>
        ) : (
          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {availableExams.map(({ exam, packet }) => (
+            {availableExams.map(({ exam, packet, isTaken, lastScore }) => (
                 <div key={exam.id} className="bg-white/70 backdrop-blur-xl rounded-3xl shadow-xl hover:shadow-2xl hover:bg-white/80 transition-all duration-300 overflow-hidden border border-white/50 flex flex-col group relative transform hover:-translate-y-1">
                     {/* Glassy Color Bar */}
                     <div className={`h-2 w-full ${packet?.category === 'Numerasi' ? 'bg-orange-500/80' : 'bg-blue-600/80'}`}></div>
                     
                     <div className="p-8 flex-1 flex flex-col relative">
                         {/* Category Badge */}
-                        <div className="absolute top-6 right-6">
+                        <div className="absolute top-6 right-6 flex flex-col items-end gap-1">
                              <span className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-sm backdrop-blur-md ${
                                  packet?.category === 'Numerasi' 
                                  ? 'bg-orange-100/80 text-orange-800 border border-orange-200' 
@@ -96,6 +105,11 @@ const StudentExamList: React.FC<StudentExamListProps> = ({ username, onStartExam
                              }`}>
                                  {packet?.category || 'Umum'}
                              </span>
+                             {isTaken && (
+                                 <span className="px-2 py-1 rounded bg-green-100 text-green-700 text-[10px] font-bold border border-green-200">
+                                     Sudah Dikerjakan (Nilai: {Math.round(lastScore || 0)})
+                                 </span>
+                             )}
                         </div>
 
                         <div className="mb-6 mt-2">
@@ -128,9 +142,13 @@ const StudentExamList: React.FC<StudentExamListProps> = ({ username, onStartExam
 
                         <button 
                             onClick={() => onStartExam(exam.id)}
-                            className="mt-8 w-full bg-gray-900/90 text-white py-4 rounded-xl font-bold hover:bg-black hover:shadow-lg transition-all flex justify-center items-center gap-3 backdrop-blur-sm border border-gray-700"
+                            className={`mt-8 w-full py-4 rounded-xl font-bold hover:shadow-lg transition-all flex justify-center items-center gap-3 backdrop-blur-sm border ${
+                                isTaken 
+                                ? 'bg-yellow-500/90 text-white hover:bg-yellow-600 border-yellow-400' 
+                                : 'bg-gray-900/90 text-white hover:bg-black border-gray-700'
+                            }`}
                         >
-                            <span>Mulai Mengerjakan</span>
+                            <span>{isTaken ? 'Kerjakan Lagi' : 'Mulai Mengerjakan'}</span>
                             <span className="text-xl">→</span>
                         </button>
                     </div>

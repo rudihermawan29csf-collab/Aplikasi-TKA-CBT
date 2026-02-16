@@ -80,7 +80,8 @@ const Monitoring: React.FC<MonitoringProps> = ({ userRole, username }) => {
 
             if (matchedResult) {
                 status = 'done';
-                score = matchedResult.score;
+                // PERBAIKAN: Bulatkan nilai skor
+                score = Math.round(matchedResult.score);
                 violations = matchedResult.violationCount;
             } else {
                 // Mock Live Status logic

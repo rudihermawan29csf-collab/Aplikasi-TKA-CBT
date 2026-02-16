@@ -25,24 +25,36 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
-    // Refresh settings
+    // Initial fetch
     setSettings(storage.settings.get());
+
+    // PERBAIKAN: Polling setiap 1.5 detik untuk cek update dari background sync App.tsx
+    // Ini memastikan jika judul/nama sekolah baru saja tersinkron, tampilan langsung berubah
+    const settingsInterval = setInterval(() => {
+        const freshSettings = storage.settings.get();
+        // Cek sederhana apakah ada perubahan, jika mau lebih efisien bisa compare JSON string
+        if (freshSettings.schoolName !== settings.schoolName || freshSettings.loginTitle !== settings.loginTitle) {
+             setSettings(freshSettings);
+        }
+    }, 1500);
 
     if (role === UserRole.STUDENT) {
       loadStudents();
     } else {
-      // Clear inputs for other roles
       setPassword('');
     }
-  }, [role]);
+
+    return () => clearInterval(settingsInterval);
+  }, [role, settings.schoolName, settings.loginTitle]); // Dependencies untuk re-check
 
   const loadStudents = () => {
       const data = storage.students.getAll();
       setStudents(data);
       const uniqueClasses = Array.from(new Set(data.map(s => s.class))).sort();
       setClasses(uniqueClasses);
-      setSelectedClass('');
-      setSelectedStudentId('');
+      // Jangan reset selectedClass jika user sedang memilih
+      if (!selectedClass) setSelectedClass('');
+      if (!selectedStudentId) setSelectedStudentId('');
   };
 
   const handleManualRefresh = async () => {
@@ -56,26 +68,26 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Refresh settings one last time before checking password
+    const currentSettings = storage.settings.get();
+
     if (role === UserRole.ADMIN) {
-      // Admin password check
-      if (password === settings.adminPassword) {
+      if (password === currentSettings.adminPassword) {
         onLogin(role, 'Administrator');
       } else {
         alert('Password Administrator Salah!');
       }
     } 
     else if (role === UserRole.TEACHER) {
-      // Teacher credentials check based on selected category
       const pass = password.trim();
-
       if (teacherCategory === 'Literasi') {
-        if (pass === settings.teacherLiterasiPassword) {
+        if (pass === currentSettings.teacherLiterasiPassword) {
             onLogin(role, 'Guru Literasi');
         } else {
             alert('Password Guru Literasi salah!');
         }
       } else if (teacherCategory === 'Numerasi') {
-        if (pass === settings.teacherNumerasiPassword) {
+        if (pass === currentSettings.teacherNumerasiPassword) {
             onLogin(role, 'Guru Numerasi');
         } else {
             alert('Password Guru Numerasi salah!');
@@ -83,7 +95,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       }
     } 
     else if (role === UserRole.STUDENT) {
-      // Student selection check
       if (selectedStudentId) {
         const student = students.find(s => s.id === selectedStudentId);
         if (student) {
@@ -103,7 +114,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     <div 
       className="min-h-screen flex items-center justify-center p-4 font-sans bg-gray-900"
       style={{ 
-        // New macOS Monterey Style Abstract Background (Purple/Pink/Blue)
         backgroundImage: `url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2864&auto=format&fit=crop')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
@@ -113,10 +123,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]"></div>
 
       <div className="relative z-10 w-full max-w-md">
-        {/* Glass Card - Mac Style */}
         <div className="bg-white/10 backdrop-filter backdrop-blur-xl border border-white/20 rounded-[2rem] shadow-2xl overflow-hidden p-8 text-center ring-1 ring-white/10">
             
-            {/* Logo Wrapper */}
             <div className="flex justify-center mb-6">
                 <div className="w-24 h-24 bg-white/20 rounded-3xl flex items-center justify-center backdrop-blur-md shadow-lg border border-white/20 p-3">
                    <img 
@@ -134,7 +142,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 {settings.schoolName || "Sekolah"} • {settings.academicYear} {settings.semester}
             </p>
 
-            {/* Role Switcher - iOS Segmented Control Style */}
             <div className="bg-black/20 p-1 rounded-xl flex mb-6 backdrop-blur-md border border-white/10">
                 {[UserRole.STUDENT, UserRole.TEACHER, UserRole.ADMIN].map((r) => (
                     <button
@@ -157,7 +164,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                     <div className="space-y-1 group">
                         <div className="flex justify-between items-end">
                             <label className="text-white text-[10px] font-bold ml-1 uppercase tracking-wider opacity-90">Kelas</label>
-                            {/* Manual Refresh Button for Students */}
                             <button 
                                 type="button" 
                                 onClick={handleManualRefresh}
