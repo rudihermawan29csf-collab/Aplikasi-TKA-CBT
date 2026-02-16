@@ -9,8 +9,7 @@ const KEYS = {
 
 // --- KONFIGURASI URL SCRIPT ---
 // Ganti string kosong di bawah ini dengan URL Web App Anda jika ingin terkoneksi otomatis
-// contoh: const HARDCODED_API_URL = 'https://script.google.com/macros/s/...../exec';
-const HARDCODED_API_URL = ''; 
+const HARDCODED_API_URL = 'https://script.google.com/macros/s/AKfycbwJiR-CIk5UB_zhsoPxJ-IrAZ53kzhjyFLCxkG1Sdh9a6hHZxdcLuPeEBkrwkVwLsMIFw/exec'; 
 
 const DEFAULT_SETTINGS: SchoolSettings = {
   schoolName: 'SMPN 3 Pacet',
@@ -193,9 +192,15 @@ export const storage = {
     save: (settings: SchoolSettings) => {
       CACHE.Settings = [settings];
       localStorage.setItem(KEYS.CACHE_DATA, JSON.stringify(CACHE)); // Save locally immediately
-      Object.keys(settings).forEach(key => {
-          sendToApi('update', 'Settings', { Key: key, Value: settings[key as keyof SchoolSettings] }, key);
-      });
+      
+      // FIX: Send requests SEQUENTIALLY to prevent GAS LockService collisions/timeouts
+      (async () => {
+          for (const key of Object.keys(settings)) {
+              await sendToApi('update', 'Settings', { Key: key, Value: settings[key as keyof SchoolSettings] }, key);
+              // Small delay to be polite to GAS quotas
+              await new Promise(resolve => setTimeout(resolve, 150)); 
+          }
+      })();
     }
   },
   students: {

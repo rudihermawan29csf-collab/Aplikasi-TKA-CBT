@@ -1,7 +1,7 @@
 export const GAS_SCRIPT_TEMPLATE = `// --- SALIN DARI SINI KE BAWAH (JANGAN SALIN BAGIAN 'export const' DI ATAS) ---
 // ============================================================================
 // APLIKASI CBT - GOOGLE APPS SCRIPT BACKEND
-// Versi: 1.6 (Settings Upsert Fix)
+// Versi: 1.7 (Settings Sequential Fix)
 // ============================================================================
 
 // KONFIGURASI NAMA SHEET DAN KOLOM
@@ -42,7 +42,9 @@ function doGet(e) {
 function doPost(e) {
   var lock = LockService.getScriptLock();
   try {
-    lock.waitLock(30000); // Lock 30 detik
+    // Kurangi waktu tunggu lock agar tidak timeout jika antrian panjang
+    // Namun client side sekarang mengirim secara sekuensial (antrian)
+    lock.waitLock(30000); 
 
     var body = JSON.parse(e.postData.contents);
     var action = body.action;

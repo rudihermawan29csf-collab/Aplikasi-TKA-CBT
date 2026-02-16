@@ -198,7 +198,7 @@ const Settings: React.FC = () => {
                     value={GAS_SCRIPT_TEMPLATE}
                     onClick={(e) => e.currentTarget.select()}
                   />
-                  <p className="text-[10px] text-gray-500 mt-2">Versi 1.6: Perbaikan penyimpanan pengaturan (Login Title) dan database.</p>
+                  <p className="text-[10px] text-gray-500 mt-2">Versi 1.7: Perbaikan pengiriman data sekuensial (Login Title)</p>
               </div>
           </details>
       </div>
@@ -225,7 +225,7 @@ const Settings: React.FC = () => {
                 onChange={e => handleChange('loginTitle', e.target.value)}
                 className="mt-1 w-full border border-gray-300 rounded-md p-2"
               />
-              <p className="text-[10px] text-orange-600 mt-1">*Jika gagal tersimpan, silakan Update Script di atas.</p>
+              <p className="text-[10px] text-orange-600 mt-1">*Jika gagal tersimpan, silakan Update Script di atas & Deploy ulang.</p>
             </div>
              <div className="grid grid-cols-2 gap-4">
               <div>
