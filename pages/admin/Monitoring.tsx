@@ -22,6 +22,7 @@ const Monitoring: React.FC<MonitoringProps> = ({ userRole, username }) => {
     const [activeExams, setActiveExams] = useState<Exam[]>([]);
     const [selectedExamId, setSelectedExamId] = useState<string>('');
     const [filterClass, setFilterClass] = useState<string>('');
+    const [filterStatus, setFilterStatus] = useState<string>('all'); // Filter Status State
     const [availableClasses, setAvailableClasses] = useState<string[]>([]);
     
     // Data Table
@@ -38,7 +39,7 @@ const Monitoring: React.FC<MonitoringProps> = ({ userRole, username }) => {
              refreshData();
         }, 5000);
         return () => clearInterval(interval);
-    }, [selectedExamId, filterClass, activeExams]); // Added activeExams dependency
+    }, [selectedExamId, filterClass, activeExams, filterStatus]); // Added filterStatus dependency
 
     useEffect(() => {
         let exams = storage.exams.getAll(); 
@@ -65,13 +66,15 @@ const Monitoring: React.FC<MonitoringProps> = ({ userRole, username }) => {
 
         let enrolledStudents = storage.students.getAll().filter(s => targetClasses.includes(s.class));
         
+        // 1. Filter Class First
         if (filterClass) {
             enrolledStudents = enrolledStudents.filter(s => s.class === filterClass);
         }
 
         const allResults = storage.results.getAll().filter(r => r.examId === selectedExamId);
 
-        const newRows: MonitorRow[] = enrolledStudents.map((s, idx) => {
+        // 2. Map All Students to Status
+        let tempRows: MonitorRow[] = enrolledStudents.map((s) => {
             const matchedResult = allResults.find(r => r.studentName === s.name) || null;
 
             let status: MonitorRow['status'] = 'offline';
@@ -80,22 +83,20 @@ const Monitoring: React.FC<MonitoringProps> = ({ userRole, username }) => {
 
             if (matchedResult) {
                 status = 'done';
-                // PERBAIKAN: Bulatkan nilai skor
                 score = Math.round(matchedResult.score);
                 violations = matchedResult.violationCount;
             } else {
-                // Mock Live Status logic
+                // Mock Live Status logic (In real app, check via socket/firebase)
                 const isLive = Math.random() > 0.8; // Simulation
                 if (isLive) {
                     status = 'online';
                     score = 'Sedang Mengerjakan';
-                    // Randomly assign violations for demo
                     violations = Math.random() > 0.95 ? Math.floor(Math.random() * 3) + 1 : 0;
                 }
             }
 
             return {
-                no: idx + 1,
+                no: 0, // Placeholder, will assign later
                 name: s.name,
                 nis: s.nis,
                 nisn: s.nisn,
@@ -106,13 +107,23 @@ const Monitoring: React.FC<MonitoringProps> = ({ userRole, username }) => {
             };
         });
 
-        setRows(newRows);
+        // 3. Filter based on Status
+        if (filterStatus === 'done') {
+            tempRows = tempRows.filter(r => r.status === 'done');
+        } else if (filterStatus === 'not_done') {
+            tempRows = tempRows.filter(r => r.status !== 'done');
+        }
+
+        // 4. Re-assign Numbering (1 to N based on visible rows)
+        const finalRows = tempRows.map((r, idx) => ({ ...r, no: idx + 1 }));
+
+        setRows(finalRows);
     };
 
     // Initial load when selection changes
     useEffect(() => {
         refreshData();
-    }, [selectedExamId, filterClass]);
+    }, [selectedExamId, filterClass, filterStatus]);
 
     return (
         <div className="space-y-6">
@@ -122,9 +133,10 @@ const Monitoring: React.FC<MonitoringProps> = ({ userRole, username }) => {
                     {teacherCategory && <span className="text-xs text-gray-500">Menampilkan ujian kategori: <b>{teacherCategory}</b></span>}
                 </div>
                 
-                <div className="flex flex-wrap items-center gap-4 w-full md:w-auto justify-end">
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
+                     {/* Exam Selector */}
                      <select 
-                        className="border p-2 rounded w-full md:w-64"
+                        className="border p-2 rounded w-full md:w-56 text-sm"
                         value={selectedExamId}
                         onChange={e => { setSelectedExamId(e.target.value); setFilterClass(''); }}
                     >
@@ -132,15 +144,32 @@ const Monitoring: React.FC<MonitoringProps> = ({ userRole, username }) => {
                         {activeExams.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}
                     </select>
 
+                    {/* Class Filter */}
                     <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-gray-500">Filter Kelas:</span>
                         <select 
-                            className="border p-2 rounded"
+                            className="border p-2 rounded text-sm"
                             value={filterClass}
                             onChange={e => setFilterClass(e.target.value)}
                         >
                             <option value="">Semua Kelas</option>
                             {availableClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                    </div>
+
+                    {/* Status Filter */}
+                    <div className="flex items-center gap-2">
+                        <select 
+                            className={`border p-2 rounded text-sm font-bold ${
+                                filterStatus === 'done' ? 'bg-green-50 text-green-700 border-green-300' :
+                                filterStatus === 'not_done' ? 'bg-red-50 text-red-700 border-red-300' :
+                                'bg-white text-gray-700'
+                            }`}
+                            value={filterStatus}
+                            onChange={e => setFilterStatus(e.target.value)}
+                        >
+                            <option value="all">Semua Status</option>
+                            <option value="done">✅ Sudah Mengerjakan</option>
+                            <option value="not_done">⏳ Belum Mengerjakan</option>
                         </select>
                     </div>
                 </div>
@@ -163,7 +192,7 @@ const Monitoring: React.FC<MonitoringProps> = ({ userRole, username }) => {
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                             {rows.length === 0 ? (
-                                <tr><td colSpan={8} className="p-6 text-center text-gray-500">Tidak ada data siswa / Pilih Ujian terlebih dahulu.</td></tr>
+                                <tr><td colSpan={8} className="p-6 text-center text-gray-500">Tidak ada data siswa sesuai filter.</td></tr>
                             ) : rows.map((row) => (
                                 <tr key={row.no} className="hover:bg-gray-50">
                                     <td className="p-3 text-center font-bold text-gray-500">{row.no}</td>
