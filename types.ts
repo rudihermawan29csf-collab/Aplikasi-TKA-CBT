@@ -14,9 +14,9 @@ export enum QuestionType {
 
 export interface SchoolSettings {
   schoolName: string;
-  loginTitle: string; // e.g. "Try Out TKA 2026"
-  academicYear: string; // e.g. "2025/2026"
-  semester: string; // e.g. "Genap"
+  loginTitle: string; 
+  academicYear: string; 
+  semester: string; 
   adminPassword: string;
   teacherLiterasiPassword: string;
   teacherNumerasiPassword: string;
@@ -35,20 +35,21 @@ export interface Question {
   id: string;
   packetId: string;
   number: number;
-  stimulus: string; // Text or HTML content
+  stimulus: string; // Text content
   text: string;
-  image?: string;
+  image?: string; // Explicit image column as requested
   type: QuestionType;
-  options: string; // JSON stringified array for DB. For BS: ["Benar", "Salah"]
-  correctAnswerIndex: number; // Used for PG and BS
-  correctAnswerIndices?: string; // JSON stringified array of numbers for PGK
-  category: string; // Literasi / Numerasi
+  options: string; // JSON string
+  correctAnswerIndex: number; 
+  correctAnswerIndices?: string; // JSON string for PGK
+  matchingPairs?: string; // JSON string for JODOHKAN, as requested
+  category: string; 
 }
 
 export interface Packet {
   id: string;
   name: string;
-  category: string; // Literasi / Numerasi
+  category: string; 
   totalQuestions: number;
   questionTypes: string; 
 }
@@ -57,10 +58,10 @@ export interface Exam {
   id: string;
   title: string;
   packetId: string;
-  scheduledStart: string; // ISO String
-  scheduledEnd: string; // ISO String
+  scheduledStart: string; 
+  scheduledEnd: string; 
   durationMinutes: number;
-  classTarget: string; // e.g., "9A,9B"
+  classTarget: string; 
   questions: string; 
   isActive: boolean;
 }
@@ -75,7 +76,7 @@ export interface Result {
   score: number;
   literasiScore: number;
   numerasiScore: number;
-  answers: string; // JSON stringified mapping {qId: answer}
+  answers: string; 
   timestamp: string;
   violationCount: number;
   isDisqualified: boolean;

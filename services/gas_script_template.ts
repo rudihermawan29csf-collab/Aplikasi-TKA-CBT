@@ -1,23 +1,34 @@
-export const GAS_SCRIPT_TEMPLATE = `
+export const GAS_SCRIPT_TEMPLATE = `// --- SALIN DARI SINI KE BAWAH (JANGAN SALIN BAGIAN 'export const' DI ATAS) ---
 // ============================================================================
 // APLIKASI CBT - GOOGLE APPS SCRIPT BACKEND
-// Versi: 1.1 (Fixed Syntax)
+// Versi: 1.4 (Final Schema Fix)
 // ============================================================================
+
+// KONFIGURASI NAMA SHEET DAN KOLOM (Sesuai Request)
+var SCHEMA = {
+  'Settings': ['Key', 'Value'],
+  'Students': ['id', 'no', 'name', 'class', 'nis', 'nisn'],
+  'Questions': ['id', 'packetId', 'number', 'stimulus', 'text', 'image', 'type', 'options', 'correctAnswerIndex', 'correctAnswerIndices', 'matchingPairs', 'category'],
+  'Packets': ['id', 'name', 'category', 'totalQuestions', 'questionTypes'],
+  'Exams': ['id', 'title', 'packetId', 'scheduledStart', 'scheduledEnd', 'durationMinutes', 'classTarget', 'questions', 'isActive'],
+  'Results': ['id', 'examId', 'examTitle', 'studentId', 'studentName', 'studentClass', 'score', 'literasiScore', 'numerasiScore', 'answers', 'timestamp', 'violationCount', 'isDisqualified']
+};
 
 // 1. GET DATA (Untuk Sync ke Aplikasi)
 function doGet(e) {
   try {
     var action = e.parameter.action;
     
+    // Action Sync: Ambil semua data sekaligus
     if (action === 'sync') {
-      var data = {
-        Settings: readData('Settings'),
-        Students: readData('Students'),
-        Questions: readData('Questions'),
-        Packets: readData('Packets'),
-        Exams: readData('Exams'),
-        Results: readData('Results')
-      };
+      var data = {};
+      var sheetNames = Object.keys(SCHEMA);
+      
+      for (var i = 0; i < sheetNames.length; i++) {
+        var name = sheetNames[i];
+        data[name] = readData(name);
+      }
+      
       return sendJSON({ status: 'success', data: data });
     }
     
@@ -31,15 +42,17 @@ function doGet(e) {
 function doPost(e) {
   var lock = LockService.getScriptLock();
   try {
-    lock.waitLock(30000); // Tunggu antrian max 30 detik
+    lock.waitLock(30000); // Lock 30 detik
 
-    // Parse Data dari React
-    // React mengirim text/plain untuk bypass CORS preflight
     var body = JSON.parse(e.postData.contents);
     var action = body.action;
     var sheetName = body.sheet;
     var payload = body.payload;
     var id = body.id;
+
+    if (!SCHEMA[sheetName]) {
+      return sendJSON({ status: 'error', message: 'Sheet not found in Schema' });
+    }
 
     if (action === 'create') {
       createRow(sheetName, payload);
@@ -67,19 +80,11 @@ function sendJSON(data) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-// Membaca data dari sheet menjadi Array of Objects
 function readData(sheetName) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(sheetName);
   
-  // Jika sheet belum ada, buat baru otomatis
-  if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
-    // Tambah header default minimal jika sheet baru dibuat
-    if (sheetName === 'Settings') sheet.appendRow(['Key', 'Value']);
-    else sheet.appendRow(['id']);
-    return [];
-  }
+  if (!sheet) return [];
 
   var lastRow = sheet.getLastRow();
   var lastCol = sheet.getLastColumn();
@@ -87,45 +92,48 @@ function readData(sheetName) {
   if (lastRow < 2 || lastCol < 1) return [];
 
   var data = sheet.getRange(1, 1, lastRow, lastCol).getValues();
-  var headers = data[0];
+  var headers = data[0]; 
   var results = [];
 
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
     var obj = {};
+    var hasData = false;
+    
     for (var j = 0; j < headers.length; j++) {
       var header = headers[j];
       var value = row[j];
       
-      // Convert Date ke ISO String
+      if (value !== "" && value !== null) hasData = true;
+
       if (Object.prototype.toString.call(value) === '[object Date]') {
         obj[header] = value.toISOString();
       } else {
         obj[header] = value;
       }
     }
-    results.push(obj);
+    if (hasData) results.push(obj);
   }
   return results;
 }
 
-// Menambah Baris Baru
 function createRow(sheetName, payload) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(sheetName);
-  if (!sheet) sheet = ss.insertSheet(sheetName);
+  if (!sheet) return;
 
-  var headers = getHeaders(sheet, payload);
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   var newRow = [];
 
   for (var i = 0; i < headers.length; i++) {
     var key = headers[i];
     var val = payload[key];
 
-    // Generate ID jika kosong
     if (key === 'id' && !val) val = Utilities.getUuid();
-    // Stringify Object/Array
-    if (val && typeof val === 'object') val = JSON.stringify(val);
+    
+    if (val && (typeof val === 'object' || Array.isArray(val))) {
+        val = JSON.stringify(val);
+    }
     
     newRow.push(val === undefined ? '' : val);
   }
@@ -133,23 +141,20 @@ function createRow(sheetName, payload) {
   sheet.appendRow(newRow);
 }
 
-// Update Baris
 function updateRow(sheetName, id, payload) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(sheetName);
-  if (!sheet) return; // Error jika sheet tidak ada saat update
+  if (!sheet) return;
 
   var data = sheet.getDataRange().getValues();
   var headers = data[0];
-  var idIndex = headers.indexOf('id');
+  
+  var idColumn = (sheetName === 'Settings') ? 'Key' : 'id';
+  var idIndex = headers.indexOf(idColumn);
 
-  // Khusus Settings gunakan Key bukan ID
-  if (sheetName === 'Settings') idIndex = headers.indexOf('Key');
-
-  if (idIndex === -1) throw new Error("Kolom ID/Key tidak ditemukan di " + sheetName);
+  if (idIndex === -1) return;
 
   for (var i = 1; i < data.length; i++) {
-    // Bandingkan ID sebagai string agar aman
     if (String(data[i][idIndex]) === String(id)) {
       var rowIndex = i + 1;
       var currentRow = data[i];
@@ -160,22 +165,21 @@ function updateRow(sheetName, id, payload) {
         var newVal = payload[header];
         
         if (newVal === undefined) {
-          // Jika tidak ada di payload, pakai nilai lama
-          updatedRow.push(currentRow[j]);
+          updatedRow.push(currentRow[j]); 
         } else {
-           // Stringify jika object
-           if (newVal && typeof newVal === 'object') newVal = JSON.stringify(newVal);
+           if (newVal && (typeof newVal === 'object' || Array.isArray(newVal))) {
+               newVal = JSON.stringify(newVal);
+           }
            updatedRow.push(newVal);
         }
       }
       
       sheet.getRange(rowIndex, 1, 1, headers.length).setValues([updatedRow]);
-      return; // Selesai update
+      return;
     }
   }
 }
 
-// Hapus Baris
 function deleteRow(sheetName, id) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(sheetName);
@@ -183,9 +187,9 @@ function deleteRow(sheetName, id) {
 
   var data = sheet.getDataRange().getValues();
   var headers = data[0];
-  var idIndex = headers.indexOf('id');
+  var idColumn = (sheetName === 'Settings') ? 'Key' : 'id';
+  var idIndex = headers.indexOf(idColumn);
 
-  if (sheetName === 'Settings') idIndex = headers.indexOf('Key');
   if (idIndex === -1) return;
 
   for (var i = 1; i < data.length; i++) {
@@ -196,57 +200,28 @@ function deleteRow(sheetName, id) {
   }
 }
 
-// Utility: Ambil atau Buat Header jika kolom baru
-function getHeaders(sheet, payload) {
-  var lastCol = sheet.getLastColumn();
-  var headers = [];
-
-  if (lastCol > 0) {
-    headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  } else {
-    // Sheet kosong, inisialisasi header dari payload
-    headers = Object.keys(payload);
-    // Pastikan 'id' ada di depan
-    if (headers.indexOf('id') === -1 && headers.indexOf('Key') === -1) {
-       headers.unshift('id');
-    }
-    sheet.appendRow(headers);
-    return headers;
-  }
-
-  // Cek jika ada kolom baru di payload yang belum ada di header sheet
-  var payloadKeys = Object.keys(payload);
-  var newHeaders = [];
-  
-  for (var k = 0; k < payloadKeys.length; k++) {
-    if (headers.indexOf(payloadKeys[k]) === -1) {
-      newHeaders.push(payloadKeys[k]);
-      headers.push(payloadKeys[k]);
-    }
-  }
-
-  // Tambahkan kolom baru ke sheet fisik
-  if (newHeaders.length > 0) {
-    sheet.getRange(1, lastCol + 1, 1, newHeaders.length).setValues([newHeaders]);
-  }
-
-  return headers;
-}
-
-// Fungsi Setup (Jalankan Sekali Manual jika mau reset)
+// 3. SETUP FUNCTION 
 function setup() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheets = ['Settings', 'Students', 'Questions', 'Packets', 'Exams', 'Results'];
-  
-  sheets.forEach(function(name) {
+  var sheetNames = Object.keys(SCHEMA);
+
+  sheetNames.forEach(function(name) {
     var sheet = ss.getSheetByName(name);
     if (!sheet) {
-      ss.insertSheet(name);
+      sheet = ss.insertSheet(name);
+    }
+    
+    var requiredHeaders = SCHEMA[name];
+    
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(requiredHeaders);
+      sheet.getRange(1, 1, 1, requiredHeaders.length).setFontWeight("bold");
+      sheet.setFrozenRows(1);
+      Logger.log("Sheet created: " + name);
+    } else {
+      var currentHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      Logger.log("Sheet " + name + " exists.");
     }
   });
 }
-
-// ============================================================================
-// END OF CODE
-// ============================================================================
 `;

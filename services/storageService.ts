@@ -39,8 +39,11 @@ const generateId = (): string => {
     });
 };
 
+// Default URL provided by user
+const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwNRx96MxyTp7Vpsro2iF8UeZ-DQgWxREkKuallL5iR1H--LQNPtpe2jBXsZIKdkiTrug/exec';
+
 export const getApiUrl = () => {
-    let url = localStorage.getItem(KEYS.API_URL) || '';
+    let url = localStorage.getItem(KEYS.API_URL) || DEFAULT_API_URL;
     // Basic cleanup ensuring no trailing slash unless it's the only char (unlikely)
     if (url.length > 1 && url.endsWith('/')) {
         url = url.slice(0, -1);

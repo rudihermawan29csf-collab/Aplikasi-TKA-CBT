@@ -17,7 +17,7 @@ const Settings: React.FC = () => {
   const [apiUrl, setLocalApiUrl] = useState('');
   const [saved, setSaved] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'checking' | 'success' | 'error'>('idle');
-  const codeRef = useRef<HTMLPreElement>(null);
+  const codeRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     setSettings(storage.settings.get());
@@ -59,12 +59,8 @@ const Settings: React.FC = () => {
       navigator.clipboard.writeText(GAS_SCRIPT_TEMPLATE).then(() => {
           alert("Kode berhasil disalin ke clipboard! Silakan paste di editor Apps Script.");
       }).catch(() => {
-          // Fallback if clipboard API fails
           if(codeRef.current) {
-              const range = document.createRange();
-              range.selectNode(codeRef.current);
-              window.getSelection()?.removeAllRanges();
-              window.getSelection()?.addRange(range);
+              codeRef.current.select();
               document.execCommand('copy');
               alert("Kode disorot. Silakan tekan Ctrl+C (Cmd+C) untuk menyalin.");
           }
@@ -109,18 +105,25 @@ const Settings: React.FC = () => {
                   <span>📂</span> Lihat / Salin Kode Apps Script
               </summary>
               <div className="mt-3 bg-white p-4 rounded border border-blue-200 shadow-inner">
-                  <div className="flex justify-between items-center mb-2">
-                      <p className="text-xs text-gray-500 font-medium">1. Salin semua kode di bawah. <br/>2. Paste di <b>script.google.com</b>. <br/>3. Simpan & Deploy sebagai Web App.</p>
-                      <button onClick={handleCopyScript} className="text-xs bg-blue-600 text-white hover:bg-blue-700 px-3 py-1.5 rounded font-bold flex items-center gap-1 shadow">
-                          📋 Salin Semua Kode
-                      </button>
+                  <div className="flex flex-col gap-2 mb-2">
+                      <p className="text-xs text-red-600 font-bold bg-red-50 p-2 rounded border border-red-200">
+                          PENTING: Jangan menyalin "export const GAS_SCRIPT_TEMPLATE = `". <br/>
+                          Hanya salin isi kode yang ada di dalam kotak abu-abu di bawah ini.
+                      </p>
+                      <div className="flex justify-between items-center mt-2">
+                        <span className="text-xs text-gray-500">Klik tombol di kanan untuk menyalin otomatis yang benar.</span>
+                        <button onClick={handleCopyScript} className="text-xs bg-blue-600 text-white hover:bg-blue-700 px-3 py-1.5 rounded font-bold flex items-center gap-1 shadow">
+                            📋 Salin Kode
+                        </button>
+                      </div>
                   </div>
-                  <pre 
+                  <textarea 
                     ref={codeRef}
-                    className="bg-gray-900 text-green-400 p-4 rounded text-xs overflow-auto max-h-80 font-mono select-all whitespace-pre-wrap break-all"
-                  >
-                      {GAS_SCRIPT_TEMPLATE}
-                  </pre>
+                    readOnly
+                    className="w-full h-80 bg-gray-900 text-green-400 p-4 rounded text-xs font-mono select-all focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={GAS_SCRIPT_TEMPLATE}
+                    onClick={(e) => e.currentTarget.select()}
+                  />
               </div>
           </details>
       </div>
