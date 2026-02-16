@@ -8,7 +8,8 @@ interface LoginProps {
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [role, setRole] = useState<UserRole>(UserRole.STUDENT);
-  const [settings, setSettings] = useState<SchoolSettings | null>(null);
+  // Initialize directly to ensure data is available on first render
+  const [settings, setSettings] = useState<SchoolSettings>(storage.settings.get());
   
   // State for Admin
   const [password, setPassword] = useState('');
@@ -23,7 +24,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [selectedStudentId, setSelectedStudentId] = useState('');
 
   useEffect(() => {
-    // Load global settings
+    // Refresh settings
     setSettings(storage.settings.get());
 
     if (role === UserRole.STUDENT) {
@@ -44,7 +45,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!settings) return;
     
     if (role === UserRole.ADMIN) {
       // Admin password check
@@ -118,10 +118,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </div>
 
             <h1 className="text-3xl font-extrabold text-white mb-1 drop-shadow-lg tracking-tight">
-                {settings?.loginTitle || "CBT Online"}
+                {settings.loginTitle || "CBT Online"}
             </h1>
             <p className="text-purple-100 font-medium text-sm mb-8 drop-shadow-md tracking-wide opacity-90">
-                {settings?.schoolName || "Sekolah"} • {settings?.academicYear} {settings?.semester}
+                {settings.schoolName || "Sekolah"} • {settings.academicYear} {settings.semester}
             </p>
 
             {/* Role Switcher - iOS Segmented Control Style */}
