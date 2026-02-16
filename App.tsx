@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserRole } from './types';
 import { storage } from './services/storageService'; // Import storage
 import Login from './pages/Login';
@@ -18,6 +18,29 @@ const App: React.FC = () => {
   const [username, setUsername] = useState<string>('');
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [activeExamId, setActiveExamId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState<string>('Menghubungkan ke Database...');
+
+  // INITIAL DATA SYNC
+  useEffect(() => {
+    const initApp = async () => {
+        const url = localStorage.getItem('cbt_api_url');
+        if (url) {
+            // Attempt to sync with Google Sheets
+            const success = await storage.sync();
+            if (success) {
+                setSyncStatus('Data berhasil dimuat.');
+            } else {
+                setSyncStatus('Gagal memuat data. Periksa koneksi internet atau pengaturan URL.');
+            }
+        } else {
+            setSyncStatus('URL Database belum diatur.');
+        }
+        setIsLoading(false);
+    };
+
+    initApp();
+  }, []);
 
   const handleLogin = (selectedRole: UserRole, user: string) => {
     setRole(selectedRole);
@@ -60,6 +83,26 @@ const App: React.FC = () => {
         return (
           <div className="space-y-6 animate-fadeIn">
             <h2 className="text-2xl font-bold text-gray-800 drop-shadow-sm mb-6">Dashboard Overview</h2>
+            
+            {studentCount === 0 && (
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+                    <div className="flex">
+                        <div className="flex-shrink-0">⚠️</div>
+                        <div className="ml-3">
+                            <p className="text-sm text-yellow-700">
+                                Data masih kosong. Jika Anda baru pertama kali menggunakan aplikasi:
+                                <br/>
+                                1. Pergi ke menu <b>Pengaturan</b>.
+                                <br/>
+                                2. Klik tombol <b>"Perbaiki Database"</b> untuk membuat sheet otomatis.
+                                <br/>
+                                3. Klik <b>"Isi Data Contoh"</b> untuk melihat simulasi data.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Card 1: Total Siswa */}
                 <div className="bg-white/70 backdrop-blur-xl p-6 rounded-2xl shadow-xl border border-white/50 flex items-center justify-between hover:transform hover:scale-[1.02] transition-all duration-300 group">
@@ -117,6 +160,16 @@ const App: React.FC = () => {
         return <div>Page not found</div>;
     }
   };
+
+  if (isLoading) {
+      return (
+          <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+              <h2 className="text-lg font-semibold text-gray-700">Memuat Aplikasi...</h2>
+              <p className="text-sm text-gray-500 mt-2">{syncStatus}</p>
+          </div>
+      );
+  }
 
   if (!role) {
     return <Login onLogin={handleLogin} />;

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { storage, getApiUrl, setApiUrl } from '../../services/storageService';
 import { SchoolSettings } from '../../types';
 import { GAS_SCRIPT_TEMPLATE } from '../../services/gas_script_template';
+import { MOCK_STUDENTS, MOCK_PACKETS, MOCK_QUESTIONS, MOCK_EXAMS } from '../../services/mockData';
 
 const Settings: React.FC = () => {
   const [settings, setSettings] = useState<SchoolSettings>({
@@ -17,6 +18,7 @@ const Settings: React.FC = () => {
   const [apiUrl, setLocalApiUrl] = useState('');
   const [saved, setSaved] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'checking' | 'success' | 'error'>('idle');
+  const [dbStatus, setDbStatus] = useState<string>('');
   const codeRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -28,9 +30,25 @@ const Settings: React.FC = () => {
     setSettings(prev => ({ ...prev, [field]: value }));
   };
 
+  const checkConnection = async (url: string) => {
+    setConnectionStatus('checking');
+    setDbStatus('Memeriksa koneksi...');
+    
+    const success = await storage.sync();
+    
+    if(success) {
+        setConnectionStatus('success');
+        const count = storage.students.getAll().length;
+        setDbStatus(`Terhubung! Ditemukan ${count} siswa, ${storage.packets.getAll().length} paket soal.`);
+    } else {
+        setConnectionStatus('error');
+        setDbStatus("Gagal. Pastikan URL benar dan Deployment diatur 'Anyone' (Siapa Saja).");
+    }
+  };
+
   const handleSave = () => {
     storage.settings.save(settings);
-    // Trim whitespace and ensure valid formatting
+    
     let cleanUrl = apiUrl.trim();
     if(cleanUrl && !cleanUrl.startsWith('http')) {
         alert("URL harus diawali dengan https://");
@@ -41,36 +59,75 @@ const Settings: React.FC = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
     
-    // Trigger sync
     if(cleanUrl) {
-        setConnectionStatus('checking');
-        storage.sync().then(success => {
-            if(success) {
-                setConnectionStatus('success');
-            } else {
-                setConnectionStatus('error');
-                alert("Gagal terkoneksi! Pastikan:\n1. URL benar (berakhiran /exec)\n2. Deployment Apps Script diatur 'Anyone' (Siapa Saja) sebagai yang memiliki akses.");
-            }
-        });
+        checkConnection(cleanUrl);
     }
   };
 
   const handleCopyScript = () => {
       navigator.clipboard.writeText(GAS_SCRIPT_TEMPLATE).then(() => {
-          alert("Kode berhasil disalin ke clipboard! Silakan paste di editor Apps Script.");
-      }).catch(() => {
-          if(codeRef.current) {
-              codeRef.current.select();
-              document.execCommand('copy');
-              alert("Kode disorot. Silakan tekan Ctrl+C (Cmd+C) untuk menyalin.");
-          }
+          alert("Kode berhasil disalin! Paste di Apps Script Editor.");
       });
+  };
+
+  const handleFixDatabase = async () => {
+      const url = getApiUrl();
+      if(!url) {
+          alert("Simpan URL Web App terlebih dahulu.");
+          return;
+      }
+
+      if(!confirm("Aksi ini akan memerintahkan Apps Script untuk membuat Sheet dan Header yang hilang. Lanjutkan?")) return;
+
+      setDbStatus("Sedang memperbaiki struktur database...");
+      try {
+          // Send special 'setup' action
+          await fetch(url, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'setup' })
+          });
+          
+          setTimeout(() => {
+             alert("Perintah setup dikirim. Tunggu sebentar lalu coba koneksi lagi.");
+             checkConnection(url);
+          }, 3000);
+
+      } catch (e) {
+          alert("Gagal mengirim perintah setup.");
+      }
+  };
+
+  const handleSeedData = async () => {
+       if(!confirm("Isi database dengan data contoh (Siswa, Soal, Jadwal)? Data lama tidak akan dihapus.")) return;
+       
+       setDbStatus("Sedang mengirim data contoh...");
+       
+       // Inject mock data sequentially to avoid overloading in no-cors mode
+       // Note: In no-cors, we can't wait for real confirmation, so we just fire and forget with slight delays
+       
+       MOCK_STUDENTS.forEach(s => storage.students.add(s));
+       await new Promise(r => setTimeout(r, 1000));
+       
+       MOCK_PACKETS.forEach(p => storage.packets.add(p));
+       await new Promise(r => setTimeout(r, 1000));
+       
+       MOCK_QUESTIONS.forEach(q => storage.questions.add(q));
+       await new Promise(r => setTimeout(r, 1000));
+       
+       MOCK_EXAMS.forEach(e => storage.exams.add(e));
+       
+       setTimeout(() => {
+           alert("Data contoh dikirim. Silakan refresh halaman atau klik Simpan & Koneksikan.");
+           checkConnection(getApiUrl());
+       }, 4000);
   };
 
   return (
     <div className="space-y-6 pb-20">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-bold text-gray-800">Pengaturan Aplikasi</h2>
+        <h2 className="text-xl font-bold text-gray-800">Pengaturan & Database</h2>
         {saved && <span className="text-green-600 font-bold animate-pulse">Perubahan Tersimpan!</span>}
       </div>
 
@@ -81,46 +138,63 @@ const Settings: React.FC = () => {
           'bg-blue-50 border-blue-600'
       }`}>
           <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
-              Koneksi Database (Google Apps Script)
+              Koneksi Database (Google Spreadsheet)
               {connectionStatus === 'checking' && <span className="text-sm font-normal animate-pulse">Checking...</span>}
               {connectionStatus === 'success' && <span className="text-sm font-bold text-green-700">✅ Terhubung</span>}
               {connectionStatus === 'error' && <span className="text-sm font-bold text-red-700">❌ Gagal</span>}
           </h3>
-          <p className="text-sm text-gray-600 mb-4">
-              Masukkan URL Web App dari Google Apps Script agar aplikasi ini bisa online dan menyimpan data ke Spreadsheet.
-          </p>
+          
           <div className="mb-4">
-             <label className="text-xs font-bold text-gray-500 uppercase block mb-1">URL Web App</label>
-             <input 
-                type="text" 
-                value={apiUrl}
-                onChange={e => setLocalApiUrl(e.target.value)}
-                className="w-full border border-gray-300 rounded-md p-3 font-mono text-sm focus:ring-blue-500 focus:border-blue-500 text-gray-700"
-                placeholder="https://script.google.com/macros/s/..../exec"
-            />
+             <label className="text-xs font-bold text-gray-500 uppercase block mb-1">URL Web App (Apps Script)</label>
+             <div className="flex gap-2">
+                <input 
+                    type="text" 
+                    value={apiUrl}
+                    onChange={e => setLocalApiUrl(e.target.value)}
+                    className="flex-1 border border-gray-300 rounded-md p-3 font-mono text-sm focus:ring-blue-500 focus:border-blue-500 text-gray-700"
+                    placeholder="https://script.google.com/macros/s/..../exec"
+                />
+                <button 
+                    onClick={handleSave}
+                    className="bg-blue-600 text-white px-4 rounded font-bold hover:bg-blue-700"
+                >
+                    Tes Koneksi
+                </button>
+             </div>
+             <p className="text-xs mt-2 font-mono text-gray-600">{dbStatus}</p>
           </div>
 
-          <details className="group">
-              <summary className="cursor-pointer text-sm font-bold text-blue-700 hover:text-blue-800 flex items-center gap-2 p-2 hover:bg-blue-100 rounded">
-                  <span>📂</span> Lihat / Salin Kode Apps Script
+          {/* Database Tools */}
+          <div className="flex flex-wrap gap-4 mt-4 border-t border-blue-200 pt-4">
+              <button 
+                onClick={handleFixDatabase}
+                className="bg-orange-500 hover:bg-orange-600 text-white text-sm px-4 py-2 rounded shadow flex items-center gap-2"
+                title="Klik jika data kosong padahal URL sudah benar"
+              >
+                  🛠️ Perbaiki Database (Buat Header Sheet)
+              </button>
+               <button 
+                onClick={handleSeedData}
+                className="bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded shadow flex items-center gap-2"
+                title="Isi database dengan data dummy untuk testing"
+              >
+                  🌱 Isi Data Contoh
+              </button>
+          </div>
+
+          <details className="group mt-4">
+              <summary className="cursor-pointer text-sm font-bold text-gray-600 hover:text-blue-800 flex items-center gap-2 p-2 hover:bg-gray-100 rounded">
+                  <span>📜</span> Update Script (Jika perlu)
               </summary>
-              <div className="mt-3 bg-white p-4 rounded border border-blue-200 shadow-inner">
-                  <div className="flex flex-col gap-2 mb-2">
-                      <p className="text-xs text-red-600 font-bold bg-red-50 p-2 rounded border border-red-200">
-                          PENTING: Jangan menyalin "export const GAS_SCRIPT_TEMPLATE = `". <br/>
-                          Hanya salin isi kode yang ada di dalam kotak abu-abu di bawah ini.
-                      </p>
-                      <div className="flex justify-between items-center mt-2">
-                        <span className="text-xs text-gray-500">Klik tombol di kanan untuk menyalin otomatis yang benar.</span>
-                        <button onClick={handleCopyScript} className="text-xs bg-blue-600 text-white hover:bg-blue-700 px-3 py-1.5 rounded font-bold flex items-center gap-1 shadow">
-                            📋 Salin Kode
-                        </button>
-                      </div>
+              <div className="mt-3 bg-white p-4 rounded border border-gray-300 shadow-inner">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs text-red-600 font-bold">Pastikan script di Apps Script Editor sesuai dengan kode ini:</span>
+                    <button onClick={handleCopyScript} className="text-xs bg-gray-800 text-white px-3 py-1 rounded">Copy</button>
                   </div>
                   <textarea 
                     ref={codeRef}
                     readOnly
-                    className="w-full h-80 bg-gray-900 text-green-400 p-4 rounded text-xs font-mono select-all focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full h-40 bg-gray-900 text-green-400 p-2 rounded text-xs font-mono select-all"
                     value={GAS_SCRIPT_TEMPLATE}
                     onClick={(e) => e.currentTarget.select()}
                   />
@@ -139,7 +213,7 @@ const Settings: React.FC = () => {
                 type="text" 
                 value={settings.schoolName}
                 onChange={e => handleChange('schoolName', e.target.value)}
-                className="mt-1 w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
+                className="mt-1 w-full border border-gray-300 rounded-md p-2"
               />
             </div>
             <div>
@@ -148,11 +222,10 @@ const Settings: React.FC = () => {
                 type="text" 
                 value={settings.loginTitle}
                 onChange={e => handleChange('loginTitle', e.target.value)}
-                className="mt-1 w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Contoh: Try Out TKA 2026"
+                className="mt-1 w-full border border-gray-300 rounded-md p-2"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Tahun Pelajaran</label>
                 <input 

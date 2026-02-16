@@ -1,10 +1,10 @@
 export const GAS_SCRIPT_TEMPLATE = `// --- SALIN DARI SINI KE BAWAH (JANGAN SALIN BAGIAN 'export const' DI ATAS) ---
 // ============================================================================
 // APLIKASI CBT - GOOGLE APPS SCRIPT BACKEND
-// Versi: 1.4 (Final Schema Fix)
+// Versi: 1.5 (Remote Setup Enabled)
 // ============================================================================
 
-// KONFIGURASI NAMA SHEET DAN KOLOM (Sesuai Request)
+// KONFIGURASI NAMA SHEET DAN KOLOM
 var SCHEMA = {
   'Settings': ['Key', 'Value'],
   'Students': ['id', 'no', 'name', 'class', 'nis', 'nisn'],
@@ -46,6 +46,13 @@ function doPost(e) {
 
     var body = JSON.parse(e.postData.contents);
     var action = body.action;
+    
+    // Fitur Khusus: Remote Setup (Buat Header jika belum ada)
+    if (action === 'setup') {
+       setup();
+       return sendJSON({ status: 'success', message: 'Database initialized' });
+    }
+
     var sheetName = body.sheet;
     var payload = body.payload;
     var id = body.id;
@@ -200,7 +207,7 @@ function deleteRow(sheetName, id) {
   }
 }
 
-// 3. SETUP FUNCTION 
+// 3. SETUP FUNCTION (Dijalankan saat pertama kali)
 function setup() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheetNames = Object.keys(SCHEMA);
@@ -217,10 +224,6 @@ function setup() {
       sheet.appendRow(requiredHeaders);
       sheet.getRange(1, 1, 1, requiredHeaders.length).setFontWeight("bold");
       sheet.setFrozenRows(1);
-      Logger.log("Sheet created: " + name);
-    } else {
-      var currentHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-      Logger.log("Sheet " + name + " exists.");
     }
   });
 }

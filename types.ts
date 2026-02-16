@@ -37,12 +37,12 @@ export interface Question {
   number: number;
   stimulus: string; // Text content
   text: string;
-  image?: string; // Explicit image column as requested
+  image?: string; // Explicit image column
   type: QuestionType;
   options: string; // JSON string
   correctAnswerIndex: number; 
   correctAnswerIndices?: string; // JSON string for PGK
-  matchingPairs?: string; // JSON string for JODOHKAN, as requested
+  matchingPairs?: string; // JSON string for JODOHKAN/BS rows
   category: string; 
 }
 
@@ -61,7 +61,7 @@ export interface Exam {
   scheduledStart: string; 
   scheduledEnd: string; 
   durationMinutes: number;
-  classTarget: string; 
+  classTarget: string; // Comma separated string or JSON string array
   questions: string; 
   isActive: boolean;
 }
