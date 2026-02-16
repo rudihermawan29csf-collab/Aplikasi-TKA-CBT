@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { storage } from '../../services/storageService';
-import { Packet, Question, QuestionType } from '../../types';
+import { Packet, Question, QuestionType, UserRole } from '../../types';
 
 // Data Structure Helpers
 interface BSItem {
@@ -8,7 +8,12 @@ interface BSItem {
     right: string; // 'a' = Option 1 (Benar), 'b' = Option 2 (Salah)
 }
 
-const QuestionBank: React.FC = () => {
+interface QuestionBankProps {
+    userRole: UserRole | null;
+    username: string;
+}
+
+const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
   const [packets, setPackets] = useState<Packet[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [selectedPacketId, setSelectedPacketId] = useState<string | null>(null);
@@ -31,14 +36,35 @@ const QuestionBank: React.FC = () => {
   const [bsOptions, setBsOptions] = useState<string[]>(["Benar", "Salah"]);
   const [bsItems, setBsItems] = useState<BSItem[]>([{ left: "", right: "a" }]);
 
+  // Determine teacher category based on login name
+  const teacherCategory = userRole === UserRole.TEACHER 
+    ? (username.includes('Literasi') ? 'Literasi' : (username.includes('Numerasi') ? 'Numerasi' : null))
+    : null;
+
   useEffect(() => {
-    setPackets(storage.packets.getAll());
+    let allPackets = storage.packets.getAll();
+    
+    // Filter packets if Teacher
+    if (userRole === UserRole.TEACHER && teacherCategory) {
+        allPackets = allPackets.filter(p => p.category === teacherCategory);
+    }
+    
+    setPackets(allPackets);
+
     if (selectedPacketId) {
       setQuestions(storage.questions.getByPacketId(selectedPacketId));
     }
-  }, [selectedPacketId]);
+  }, [selectedPacketId, userRole, username]);
 
   // --- Packet Handlers ---
+  const handleOpenPacketModal = () => {
+      // If teacher, pre-fill category and lock it
+      setPacketForm({
+          category: teacherCategory || ''
+      });
+      setIsPacketModalOpen(true);
+  };
+
   const handleSavePacket = () => {
       if (packetForm.name && packetForm.category) {
           if (packetForm.id) {
@@ -50,16 +76,31 @@ const QuestionBank: React.FC = () => {
                   questionTypes: '' 
               } as Packet);
           }
-          setPackets(storage.packets.getAll());
+          
+          // Refresh list with filters
+          let allPackets = storage.packets.getAll();
+          if (userRole === UserRole.TEACHER && teacherCategory) {
+              allPackets = allPackets.filter(p => p.category === teacherCategory);
+          }
+          setPackets(allPackets);
+          
           setIsPacketModalOpen(false);
           setPacketForm({});
+      } else {
+          alert("Nama dan Kategori wajib diisi");
       }
   };
 
   const handleDeletePacket = (id: string) => {
       if (confirm("Hapus paket soal ini?")) {
           storage.packets.delete(id);
-          setPackets(storage.packets.getAll());
+          
+          let allPackets = storage.packets.getAll();
+          if (userRole === UserRole.TEACHER && teacherCategory) {
+              allPackets = allPackets.filter(p => p.category === teacherCategory);
+          }
+          setPackets(allPackets);
+          
           if (selectedPacketId === id) setSelectedPacketId(null);
       }
   };
@@ -75,9 +116,6 @@ const QuestionBank: React.FC = () => {
           // But priority check if 'image' field is filled
           if(existing.image) {
                setStimulusType('image');
-               // If image field exists, we can use it, but current UI binds to stimulus. 
-               // Ideally modify UI to handle separate image field.
-               // For now, assume stimulus holds the content to display.
           } else {
                setStimulusType(isImg ? 'image' : 'text');
           }
@@ -106,7 +144,7 @@ const QuestionBank: React.FC = () => {
               correctAnswerIndex: 0,
               correctAnswerIndices: '[]',
               matchingPairs: '[]',
-              category: 'Literasi'
+              category: teacherCategory || 'Literasi'
           });
           setStimulusType('text');
           setBsOptions(["Benar", "Salah"]);
@@ -289,15 +327,27 @@ const QuestionBank: React.FC = () => {
   return (
     <div className="grid grid-cols-12 gap-6 h-[calc(100vh-140px)]">
       <div className="col-span-3 bg-white rounded-lg shadow overflow-hidden flex flex-col">
-        <div className="p-4 border-b flex justify-between bg-gray-50">
-          <h3 className="font-bold">Paket Soal</h3>
-          <button onClick={() => { setPacketForm({}); setIsPacketModalOpen(true); }} className="text-blue-600 text-sm">+ Baru</button>
+        <div className="p-4 border-b flex justify-between bg-gray-50 items-center">
+          <h3 className="font-bold text-gray-800">Paket Soal</h3>
+          <button onClick={handleOpenPacketModal} className="text-blue-600 text-sm font-bold bg-blue-50 px-2 py-1 rounded hover:bg-blue-100">+ Baru</button>
         </div>
+        
+        {/* Category Indicator */}
+        {teacherCategory && (
+            <div className={`text-[10px] text-center py-1 font-bold text-white uppercase ${teacherCategory === 'Numerasi' ? 'bg-orange-500' : 'bg-blue-600'}`}>
+                Mode Guru: {teacherCategory}
+            </div>
+        )}
+
         <div className="overflow-y-auto flex-1 p-2 space-y-2">
+          {packets.length === 0 && <div className="text-center text-gray-400 text-xs py-4">Belum ada paket soal.</div>}
           {packets.map(p => (
-            <div key={p.id} onClick={() => setSelectedPacketId(p.id)} className={`p-3 rounded cursor-pointer border ${selectedPacketId === p.id ? 'bg-blue-50 border-blue-200' : 'hover:bg-gray-50 border-transparent'}`}>
-              <div className="font-medium">{p.name}</div>
-              <div className="text-xs text-gray-500">{p.category} • {p.totalQuestions} Soal</div>
+            <div key={p.id} onClick={() => setSelectedPacketId(p.id)} className={`p-3 rounded cursor-pointer border transition-colors ${selectedPacketId === p.id ? 'bg-blue-50 border-blue-200 shadow-sm' : 'hover:bg-gray-50 border-transparent'}`}>
+              <div className="font-medium text-gray-800">{p.name}</div>
+              <div className="text-xs text-gray-500 flex justify-between mt-1">
+                  <span>{p.category}</span>
+                  <span>{p.totalQuestions} Soal</span>
+              </div>
             </div>
           ))}
         </div>
@@ -306,42 +356,77 @@ const QuestionBank: React.FC = () => {
       <div className="col-span-9 bg-white rounded-lg shadow flex flex-col">
         {selectedPacketId ? (
           <>
-            <div className="p-4 border-b flex justify-between">
-              <h3 className="font-bold">Daftar Soal</h3>
-              <button onClick={() => openAddQuestion()} className="bg-blue-600 text-white px-3 py-1 rounded text-sm">+ Tambah Soal</button>
+            <div className="p-4 border-b flex justify-between items-center">
+              <div>
+                  <h3 className="font-bold text-gray-800">{packets.find(p => p.id === selectedPacketId)?.name}</h3>
+                  <span className="text-xs text-gray-500">{packets.find(p => p.id === selectedPacketId)?.category}</span>
+              </div>
+              <div className="flex gap-2">
+                  <button onClick={() => handleDeletePacket(selectedPacketId)} className="text-red-600 bg-red-50 px-3 py-1 rounded text-sm hover:bg-red-100">Hapus Paket</button>
+                  <button onClick={() => openAddQuestion()} className="bg-blue-600 text-white px-3 py-1 rounded text-sm font-bold hover:bg-blue-700 shadow">+ Tambah Soal</button>
+              </div>
             </div>
             <div className="p-4 bg-gray-100 border-b flex flex-wrap gap-2">
                  {Array.from({ length: packets.find(p=>p.id===selectedPacketId)?.totalQuestions || 20 }).map((_, i) => {
                         const num = i + 1;
                         const hasQ = questions.find(q => q.number === num);
-                        return <button key={num} onClick={() => openAddQuestion(num)} className={`w-8 h-8 rounded border ${hasQ ? 'bg-green-500 text-white' : 'bg-white text-gray-400'}`}>{num}</button>
+                        return <button key={num} onClick={() => openAddQuestion(num)} className={`w-8 h-8 rounded border font-bold text-sm ${hasQ ? 'bg-green-500 text-white border-green-600' : 'bg-white text-gray-400 hover:border-blue-400'}`}>{num}</button>
                  })}
             </div>
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-50/30">
+              {questions.length === 0 && <div className="text-center text-gray-400 py-10 italic">Belum ada butir soal. Silakan tambah soal.</div>}
               {questions.sort((a,b)=>a.number-b.number).map(q => (
-                <div key={q.id} className="border rounded p-4 relative group">
-                  <div className="absolute top-2 right-2 hidden group-hover:flex gap-2">
-                      <button onClick={() => openAddQuestion(q.number)} className="text-blue-500 text-xs bg-blue-50 p-1 rounded">Edit</button>
-                      <button onClick={() => setPreviewQuestion(q)} className="text-gray-500 text-xs bg-gray-50 p-1 rounded">Preview</button>
-                      <button onClick={() => handleDeleteQuestion(q.id)} className="text-red-500 text-xs bg-red-50 p-1 rounded">Del</button>
+                <div key={q.id} className="border rounded-xl p-6 bg-white shadow-sm relative group hover:shadow-md transition-shadow">
+                  <div className="absolute top-4 right-4 hidden group-hover:flex gap-2">
+                      <button onClick={() => openAddQuestion(q.number)} className="text-blue-600 text-xs bg-blue-50 px-2 py-1 rounded font-bold hover:bg-blue-100">Edit</button>
+                      <button onClick={() => setPreviewQuestion(q)} className="text-gray-600 text-xs bg-gray-100 px-2 py-1 rounded font-bold hover:bg-gray-200">Preview</button>
+                      <button onClick={() => handleDeleteQuestion(q.id)} className="text-red-600 text-xs bg-red-50 px-2 py-1 rounded font-bold hover:bg-red-100">Hapus</button>
                   </div>
-                  <div className="flex gap-2 mb-2"><span className="font-bold text-blue-600">No. {q.number}</span><span className="bg-gray-100 text-xs px-2 py-0.5 rounded">{q.type}</span></div>
-                  <div className="whitespace-pre-wrap">{q.text}</div>
+                  <div className="flex items-center gap-2 mb-3">
+                      <span className="bg-blue-600 text-white w-8 h-8 flex items-center justify-center rounded-full font-bold shadow-sm">{q.number}</span>
+                      <span className="bg-gray-100 text-xs px-2 py-1 rounded text-gray-600 font-medium border">{q.type}</span>
+                  </div>
+                  <div className="whitespace-pre-wrap text-gray-800">{q.text}</div>
                 </div>
               ))}
             </div>
           </>
-        ) : <div className="p-10 text-center text-gray-400">Pilih paket soal</div>}
+        ) : <div className="flex items-center justify-center h-full text-gray-400 flex-col gap-2">
+            <span className="text-4xl">👈</span>
+            <span>Pilih paket soal di sebelah kiri</span>
+        </div>}
       </div>
 
       {isPacketModalOpen && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-              <div className="bg-white p-6 rounded w-96 space-y-4">
-                  <h3 className="font-bold">Paket Soal</h3>
-                  <input className="w-full border p-2 rounded" placeholder="Nama" value={packetForm.name||''} onChange={e=>setPacketForm({...packetForm, name:e.target.value})} />
-                  <select className="w-full border p-2 rounded" value={packetForm.category||''} onChange={e=>setPacketForm({...packetForm, category:e.target.value})}><option value="">Pilih Kategori</option><option value="Literasi">Literasi</option><option value="Numerasi">Numerasi</option></select>
-                  <input type="number" className="w-full border p-2 rounded" placeholder="Jml Soal" value={packetForm.totalQuestions||''} onChange={e=>setPacketForm({...packetForm, totalQuestions:parseInt(e.target.value)})} />
-                  <div className="flex justify-end gap-2"><button onClick={()=>setIsPacketModalOpen(false)}>Batal</button><button onClick={handleSavePacket} className="bg-blue-600 text-white px-4 py-2 rounded">Simpan</button></div>
+              <div className="bg-white p-6 rounded-xl w-96 space-y-4 shadow-2xl">
+                  <h3 className="font-bold text-lg text-gray-800 border-b pb-2">Buat Paket Soal Baru</h3>
+                  <div>
+                      <label className="text-xs font-bold text-gray-500">Nama Paket</label>
+                      <input className="w-full border p-2 rounded mt-1" placeholder="Contoh: UTS Bahasa Indonesia" value={packetForm.name||''} onChange={e=>setPacketForm({...packetForm, name:e.target.value})} />
+                  </div>
+                  <div>
+                       <label className="text-xs font-bold text-gray-500">Kategori</label>
+                       <select 
+                            className="w-full border p-2 rounded mt-1 bg-gray-50" 
+                            value={packetForm.category||''} 
+                            onChange={e=>setPacketForm({...packetForm, category:e.target.value})}
+                            disabled={!!teacherCategory} // Disable if teacher
+                       >
+                            <option value="">Pilih Kategori</option>
+                            <option value="Literasi">Literasi</option>
+                            <option value="Numerasi">Numerasi</option>
+                       </select>
+                       {teacherCategory && <p className="text-[10px] text-blue-600 mt-1">* Kategori dikunci untuk akun Guru {teacherCategory}</p>}
+                  </div>
+                  <div>
+                      <label className="text-xs font-bold text-gray-500">Jumlah Soal</label>
+                      <input type="number" className="w-full border p-2 rounded mt-1" placeholder="Total nomor" value={packetForm.totalQuestions||''} onChange={e=>setPacketForm({...packetForm, totalQuestions:parseInt(e.target.value)})} />
+                  </div>
+                  <div className="flex justify-end gap-2 mt-4">
+                      <button onClick={()=>setIsPacketModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Batal</button>
+                      <button onClick={handleSavePacket} className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 shadow">Simpan</button>
+                  </div>
               </div>
           </div>
       )}
@@ -349,42 +434,68 @@ const QuestionBank: React.FC = () => {
       {isQuestionModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
            <div className="bg-white p-6 rounded-lg w-[900px] h-[90vh] overflow-y-auto shadow-2xl">
-              <div className="flex justify-between mb-4"><h3 className="font-bold">Edit Soal {questionForm.number}</h3><button onClick={()=>setIsQuestionModalOpen(false)}>x</button></div>
+              <div className="flex justify-between mb-4 border-b pb-2"><h3 className="font-bold text-lg">Edit Soal No. {questionForm.number}</h3><button onClick={()=>setIsQuestionModalOpen(false)} className="text-gray-400 hover:text-gray-800 font-bold">✕</button></div>
               <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-4">
-                      <select className="w-full border p-2 rounded" value={questionForm.type} onChange={e=>setQuestionForm({...questionForm, type:e.target.value as QuestionType})}>
-                          <option value={QuestionType.MULTIPLE_CHOICE}>Pilihan Ganda</option>
-                          <option value={QuestionType.COMPLEX_MULTIPLE_CHOICE}>Pilihan Ganda Kompleks</option>
-                          <option value={QuestionType.TRUE_FALSE}>Benar / Salah (Tabel)</option>
-                      </select>
                       <div>
-                          <div className="flex gap-2 mb-1"><button onClick={()=>setStimulusType('text')} className={`text-xs p-1 ${stimulusType==='text'?'bg-blue-600 text-white':''}`}>Teks</button><button onClick={()=>setStimulusType('image')} className={`text-xs p-1 ${stimulusType==='image'?'bg-blue-600 text-white':''}`}>Gambar</button></div>
-                          {stimulusType==='text' ? <textarea className="w-full border p-2 h-40" placeholder="Stimulus" value={questionForm.stimulus||''} onChange={e=>setQuestionForm({...questionForm, stimulus:e.target.value})} /> : 
-                          <div className="border p-4 text-center"><input type="file" onChange={handleImageUpload} />{questionForm.stimulus && <img src={questionForm.stimulus} className="h-20 mx-auto mt-2" />}</div>}
+                          <label className="text-xs font-bold text-gray-500 block mb-1">Tipe Soal</label>
+                          <select className="w-full border p-2 rounded" value={questionForm.type} onChange={e=>setQuestionForm({...questionForm, type:e.target.value as QuestionType})}>
+                            <option value={QuestionType.MULTIPLE_CHOICE}>Pilihan Ganda</option>
+                            <option value={QuestionType.COMPLEX_MULTIPLE_CHOICE}>Pilihan Ganda Kompleks</option>
+                            <option value={QuestionType.TRUE_FALSE}>Benar / Salah (Tabel)</option>
+                          </select>
+                      </div>
+                      <div>
+                          <div className="flex gap-2 mb-2 items-center">
+                              <label className="text-xs font-bold text-gray-500">Stimulus (Teks/Gambar)</label>
+                              <div className="flex bg-gray-100 rounded p-0.5">
+                                  <button onClick={()=>setStimulusType('text')} className={`text-xs px-2 py-0.5 rounded ${stimulusType==='text'?'bg-white shadow text-blue-600 font-bold':''}`}>Teks</button>
+                                  <button onClick={()=>setStimulusType('image')} className={`text-xs px-2 py-0.5 rounded ${stimulusType==='image'?'bg-white shadow text-blue-600 font-bold':''}`}>Gambar</button>
+                              </div>
+                          </div>
+                          {stimulusType==='text' ? <textarea className="w-full border p-2 h-40 rounded" placeholder="Tulis wacana atau konteks soal di sini..." value={questionForm.stimulus||''} onChange={e=>setQuestionForm({...questionForm, stimulus:e.target.value})} /> : 
+                          <div className="border-2 border-dashed p-6 text-center rounded bg-gray-50">
+                              <input type="file" onChange={handleImageUpload} accept="image/*" className="text-xs" />
+                              {questionForm.stimulus && <img src={questionForm.stimulus} className="max-h-32 mx-auto mt-4 rounded shadow" />}
+                          </div>}
                       </div>
                   </div>
                   <div className="space-y-4">
-                      <textarea className="w-full border p-2 h-24" placeholder="Pertanyaan" value={questionForm.text||''} onChange={e=>setQuestionForm({...questionForm, text:e.target.value})} />
-                      <div className="bg-gray-50 p-4 border rounded">{renderQuestionFormInput()}</div>
+                      <div>
+                          <label className="text-xs font-bold text-gray-500 block mb-1">Pertanyaan</label>
+                          <textarea className="w-full border p-2 h-24 rounded" placeholder="Tulis pertanyaan..." value={questionForm.text||''} onChange={e=>setQuestionForm({...questionForm, text:e.target.value})} />
+                      </div>
+                      <div className="bg-gray-50 p-4 border rounded-xl">
+                          <label className="text-xs font-bold text-gray-500 block mb-2 uppercase tracking-wider">Opsi Jawaban & Kunci</label>
+                          {renderQuestionFormInput()}
+                      </div>
                   </div>
               </div>
-              <div className="mt-4 flex justify-end"><button onClick={handleSaveQuestion} className="bg-blue-600 text-white px-6 py-2 rounded">Simpan</button></div>
+              <div className="mt-6 pt-4 border-t flex justify-end gap-2">
+                  <button onClick={()=>setIsQuestionModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Batal</button>
+                  <button onClick={handleSaveQuestion} className="bg-blue-600 text-white px-6 py-2 rounded font-bold hover:bg-blue-700 shadow">Simpan Soal</button>
+              </div>
            </div>
         </div>
       )}
 
       {previewQuestion && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60]" onClick={() => setPreviewQuestion(null)}>
-           <div className="bg-white rounded-xl w-[800px] max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
-               <div className="mb-4 font-bold text-lg">Preview Soal No. {previewQuestion.number}</div>
+           <div className="bg-white rounded-xl w-[800px] max-h-[90vh] overflow-y-auto p-8" onClick={e => e.stopPropagation()}>
+               <div className="mb-6 font-bold text-lg border-b pb-2 flex justify-between">
+                   <span>Preview Soal No. {previewQuestion.number}</span>
+                   <button onClick={() => setPreviewQuestion(null)} className="text-gray-400 hover:text-black">✕</button>
+               </div>
                {previewQuestion.stimulus && (
-                   <div className="mb-4 bg-gray-50 p-4 rounded border">
-                       {(previewQuestion.stimulus.startsWith('http') || previewQuestion.stimulus.startsWith('data:')) ? <img src={previewQuestion.stimulus} className="max-w-full" /> : <div className="whitespace-pre-wrap">{previewQuestion.stimulus}</div>}
+                   <div className="mb-6 bg-gray-50 p-6 rounded-xl border border-gray-200">
+                       {(previewQuestion.stimulus.startsWith('http') || previewQuestion.stimulus.startsWith('data:')) ? <img src={previewQuestion.stimulus} className="max-w-full mx-auto rounded" /> : <div className="whitespace-pre-wrap leading-relaxed">{previewQuestion.stimulus}</div>}
                    </div>
                )}
-               <div className="mb-4 font-medium">{previewQuestion.text}</div>
-               <div className="bg-gray-100 p-4 rounded">{renderPreviewOptions(previewQuestion)}</div>
-               <button onClick={() => setPreviewQuestion(null)} className="mt-4 bg-gray-800 text-white px-4 py-2 rounded">Tutup</button>
+               <div className="mb-6 font-medium text-xl text-gray-800">{previewQuestion.text}</div>
+               <div className="bg-blue-50/50 p-6 rounded-xl border border-blue-100">{renderPreviewOptions(previewQuestion)}</div>
+               <div className="mt-6 flex justify-end">
+                   <button onClick={() => setPreviewQuestion(null)} className="bg-gray-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-black">Tutup Preview</button>
+               </div>
            </div>
         </div>
       )}

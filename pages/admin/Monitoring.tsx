@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { storage } from '../../services/storageService';
-import { Exam, Student, Result } from '../../types';
+import { Exam, Student, Result, UserRole } from '../../types';
 
 interface MonitorRow {
     no: number;
@@ -13,7 +13,12 @@ interface MonitorRow {
     violationCount: number;
 }
 
-const Monitoring: React.FC = () => {
+interface MonitoringProps {
+    userRole: UserRole | null;
+    username: string;
+}
+
+const Monitoring: React.FC<MonitoringProps> = ({ userRole, username }) => {
     const [activeExams, setActiveExams] = useState<Exam[]>([]);
     const [selectedExamId, setSelectedExamId] = useState<string>('');
     const [filterClass, setFilterClass] = useState<string>('');
@@ -22,19 +27,32 @@ const Monitoring: React.FC = () => {
     // Data Table
     const [rows, setRows] = useState<MonitorRow[]>([]);
     
+    // Determine teacher category
+    const teacherCategory = userRole === UserRole.TEACHER 
+      ? (username.includes('Literasi') ? 'Literasi' : (username.includes('Numerasi') ? 'Numerasi' : null))
+      : null;
+
     // Auto-refresh simulation
     useEffect(() => {
         const interval = setInterval(() => {
              refreshData();
         }, 5000);
         return () => clearInterval(interval);
-    }, [selectedExamId, filterClass]);
+    }, [selectedExamId, filterClass, activeExams]); // Added activeExams dependency
 
     useEffect(() => {
-        const exams = storage.exams.getAll(); // Show all exams, not just active, so we can monitor finished ones too if needed
+        let exams = storage.exams.getAll(); 
+        
+        // Filter based on teacher category
+        if (userRole === UserRole.TEACHER && teacherCategory) {
+             const packets = storage.packets.getAll();
+             const allowedPacketIds = packets.filter(p => p.category === teacherCategory).map(p => p.id);
+             exams = exams.filter(e => allowedPacketIds.includes(e.packetId));
+        }
+
         setActiveExams(exams);
         if (exams.length > 0) setSelectedExamId(exams[0].id);
-    }, []);
+    }, [userRole, username, teacherCategory]);
 
     const refreshData = () => {
         if (!selectedExamId) return;
@@ -54,9 +72,6 @@ const Monitoring: React.FC = () => {
         const allResults = storage.results.getAll().filter(r => r.examId === selectedExamId);
 
         const newRows: MonitorRow[] = enrolledStudents.map((s, idx) => {
-            const res = allResults.find(r => r.studentId === 'demo-student-id' && r.studentClass === s.class); // In real app, match by ID
-            // Mocking matching logic since mock data doesn't have consistent IDs
-            // We'll try to match results loosely for demo
             const matchedResult = allResults.find(r => r.studentName === s.name) || null;
 
             let status: MonitorRow['status'] = 'offline';
@@ -69,12 +84,12 @@ const Monitoring: React.FC = () => {
                 violations = matchedResult.violationCount;
             } else {
                 // Mock Live Status logic
-                const isLive = Math.random() > 0.7; // Simulation
+                const isLive = Math.random() > 0.8; // Simulation
                 if (isLive) {
                     status = 'online';
                     score = 'Sedang Mengerjakan';
                     // Randomly assign violations for demo
-                    violations = Math.random() > 0.9 ? Math.floor(Math.random() * 3) + 1 : 0;
+                    violations = Math.random() > 0.95 ? Math.floor(Math.random() * 3) + 1 : 0;
                 }
             }
 
@@ -93,35 +108,40 @@ const Monitoring: React.FC = () => {
         setRows(newRows);
     };
 
-    // Initial load
+    // Initial load when selection changes
     useEffect(() => {
         refreshData();
     }, [selectedExamId, filterClass]);
 
     return (
         <div className="space-y-6">
-            <div className="bg-white p-4 rounded shadow flex flex-col md:flex-row justify-between items-center gap-4">
-                <div className="flex items-center gap-4 w-full md:w-auto">
+            <div className="bg-white p-4 rounded shadow flex flex-col md:flex-row justify-between items-center gap-4 border-l-4 border-blue-500">
+                <div className="flex flex-col gap-1 w-full md:w-auto">
                     <h2 className="text-xl font-bold whitespace-nowrap">Monitoring Ujian</h2>
-                    <select 
+                    {teacherCategory && <span className="text-xs text-gray-500">Menampilkan ujian kategori: <b>{teacherCategory}</b></span>}
+                </div>
+                
+                <div className="flex flex-wrap items-center gap-4 w-full md:w-auto justify-end">
+                     <select 
                         className="border p-2 rounded w-full md:w-64"
                         value={selectedExamId}
                         onChange={e => { setSelectedExamId(e.target.value); setFilterClass(''); }}
                     >
+                        {activeExams.length === 0 && <option>Tidak ada ujian aktif</option>}
                         {activeExams.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}
                     </select>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-gray-500">Filter Kelas:</span>
-                    <select 
-                        className="border p-2 rounded"
-                        value={filterClass}
-                        onChange={e => setFilterClass(e.target.value)}
-                    >
-                        <option value="">Semua Kelas</option>
-                        {availableClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
+
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-gray-500">Filter Kelas:</span>
+                        <select 
+                            className="border p-2 rounded"
+                            value={filterClass}
+                            onChange={e => setFilterClass(e.target.value)}
+                        >
+                            <option value="">Semua Kelas</option>
+                            {availableClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                    </div>
                 </div>
             </div>
 
@@ -142,7 +162,7 @@ const Monitoring: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                             {rows.length === 0 ? (
-                                <tr><td colSpan={8} className="p-6 text-center text-gray-500">Tidak ada data siswa.</td></tr>
+                                <tr><td colSpan={8} className="p-6 text-center text-gray-500">Tidak ada data siswa / Pilih Ujian terlebih dahulu.</td></tr>
                             ) : rows.map((row) => (
                                 <tr key={row.no} className="hover:bg-gray-50">
                                     <td className="p-3 text-center font-bold text-gray-500">{row.no}</td>

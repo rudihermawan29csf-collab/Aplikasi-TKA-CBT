@@ -118,10 +118,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </div>
 
             <h1 className="text-3xl font-extrabold text-white mb-1 drop-shadow-lg tracking-tight">
-                {settings?.loginTitle || "CBT Exam"}
+                {settings?.loginTitle || "CBT Online"}
             </h1>
             <p className="text-purple-100 font-medium text-sm mb-8 drop-shadow-md tracking-wide opacity-90">
-                {settings?.schoolName} • {settings?.academicYear} {settings?.semester}
+                {settings?.schoolName || "Sekolah"} • {settings?.academicYear} {settings?.semester}
             </p>
 
             {/* Role Switcher - iOS Segmented Control Style */}

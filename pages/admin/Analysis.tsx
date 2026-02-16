@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { storage } from '../../services/storageService';
-import { Result, Exam, Question } from '../../types';
+import { Result, Exam, Question, UserRole } from '../../types';
 import { analyzeResults } from '../../services/geminiService';
 
 interface ItemAnalysis {
@@ -11,18 +11,35 @@ interface ItemAnalysis {
     distractors: Record<number, number>; // Index of option -> count
 }
 
-const Analysis: React.FC = () => {
+interface AnalysisProps {
+    userRole: UserRole | null;
+    username: string;
+}
+
+const Analysis: React.FC<AnalysisProps> = ({ userRole, username }) => {
   const [exams, setExams] = useState<Exam[]>([]);
   const [selectedExamId, setSelectedExamId] = useState<string>('');
   const [analysisData, setAnalysisData] = useState<ItemAnalysis[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
 
+  // Determine teacher category
+  const teacherCategory = userRole === UserRole.TEACHER 
+      ? (username.includes('Literasi') ? 'Literasi' : (username.includes('Numerasi') ? 'Numerasi' : null))
+      : null;
+
   useEffect(() => {
-    // Only show exams that have ended or have results
-    const allExams = storage.exams.getAll();
+    let allExams = storage.exams.getAll();
+    
+    // Filter based on teacher category
+    if (userRole === UserRole.TEACHER && teacherCategory) {
+         const packets = storage.packets.getAll();
+         const allowedPacketIds = packets.filter(p => p.category === teacherCategory).map(p => p.id);
+         allExams = allExams.filter(e => allowedPacketIds.includes(e.packetId));
+    }
+
     setExams(allExams);
     if (allExams.length > 0) setSelectedExamId(allExams[0].id);
-  }, []);
+  }, [userRole, username, teacherCategory]);
 
   useEffect(() => {
       if (!selectedExamId) return;
@@ -74,7 +91,7 @@ const Analysis: React.FC = () => {
       
       setAnalysisData(itemStats.sort((a,b) => a.questionNo - b.questionNo));
 
-  }, [selectedExamId]);
+  }, [selectedExamId, exams]);
 
   const handleDownloadExcel = () => {
       // Create CSV content
@@ -132,13 +149,17 @@ const Analysis: React.FC = () => {
       `}</style>
 
       <div className="flex justify-between items-center bg-white p-4 rounded shadow no-print">
-         <div className="flex items-center gap-4">
-             <h2 className="text-xl font-bold">Analisis Hasil Ujian</h2>
+         <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+             <div>
+                 <h2 className="text-xl font-bold">Analisis Hasil Ujian</h2>
+                 {teacherCategory && <span className="text-xs text-gray-500 font-bold">Mode Guru: {teacherCategory}</span>}
+             </div>
              <select 
                 className="border p-2 rounded w-64"
                 value={selectedExamId}
                 onChange={e => setSelectedExamId(e.target.value)}
              >
+                 {exams.length === 0 && <option>Tidak ada data ujian</option>}
                  {exams.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}
              </select>
          </div>
@@ -174,7 +195,7 @@ const Analysis: React.FC = () => {
                   </thead>
                   <tbody>
                       {analysisData.length === 0 ? (
-                          <tr><td colSpan={9} className="p-4 text-center">Belum ada data hasil ujian.</td></tr>
+                          <tr><td colSpan={9} className="p-4 text-center">Belum ada data hasil ujian untuk ujian yang dipilih.</td></tr>
                       ) : analysisData.map(item => (
                           <tr key={item.questionNo} className="hover:bg-gray-50">
                               <td className="p-3 text-center border font-bold">{item.questionNo}</td>

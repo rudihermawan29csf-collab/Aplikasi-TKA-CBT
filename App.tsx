@@ -148,15 +148,15 @@ const App: React.FC = () => {
       case 'students':
         return role === UserRole.ADMIN ? <StudentData /> : <div>Access Denied</div>;
       case 'bank_soal':
-        return <QuestionBank />;
+        return <QuestionBank userRole={role} username={username} />;
       case 'schedule':
-        return <ExamSchedule />;
+        return <ExamSchedule userRole={role} username={username} />;
       case 'analysis':
-        return <Analysis />;
+        return <Analysis userRole={role} username={username} />;
       case 'settings':
         return role === UserRole.ADMIN ? <Settings /> : <div>Access Denied</div>;
       case 'monitoring':
-        return <Monitoring />;
+        return <Monitoring userRole={role} username={username} />;
       default:
         return <div>Page not found</div>;
     }
