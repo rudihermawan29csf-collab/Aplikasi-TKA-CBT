@@ -26,6 +26,10 @@ const StudentResults: React.FC<StudentResultsProps> = ({ username }) => {
     const [analysis, setAnalysis] = useState<AnswerAnalysis[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
+    // FILTERS
+    const [filterCategory, setFilterCategory] = useState<'all' | 'Literasi' | 'Numerasi'>('all');
+    const [filterScore, setFilterScore] = useState<'all' | 'under70' | 'above70'>('all');
+
     useEffect(() => {
         const allStudents = storage.students.getAll();
         const me = allStudents.find(s => s.name === username);
@@ -104,32 +108,75 @@ const StudentResults: React.FC<StudentResultsProps> = ({ username }) => {
         setIsModalOpen(true);
     };
 
+    // --- FILTERING LOGIC ---
+    const filteredResults = results.filter(item => {
+        // 1. Filter Category
+        const catMatch = filterCategory === 'all' || item.category === filterCategory;
+        
+        // 2. Filter Score (Pass/Fail)
+        const score = Math.round(Number(item.score));
+        let scoreMatch = true;
+        if (filterScore === 'under70') scoreMatch = score < 70;
+        if (filterScore === 'above70') scoreMatch = score >= 70;
+
+        return catMatch && scoreMatch;
+    });
+
     return (
         <div className="space-y-6 animate-fadeIn">
-             <div className="flex flex-col md:flex-row md:items-center gap-6 border-b border-white/20 pb-6">
-                <div className="bg-white/40 p-4 rounded-2xl text-purple-600 shadow-lg backdrop-blur-sm border border-white/40">
-                    <span className="text-4xl">📊</span>
+             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-white/20 pb-6">
+                <div className="flex items-center gap-4">
+                    <div className="bg-white/40 p-4 rounded-2xl text-purple-600 shadow-lg backdrop-blur-sm border border-white/40">
+                        <span className="text-4xl">📊</span>
+                    </div>
+                    <div>
+                        <h2 className="text-3xl font-extrabold text-gray-800 drop-shadow-sm">Hasil Ujian</h2>
+                        <p className="text-gray-600 text-sm mt-1 font-medium bg-white/30 inline-block px-3 py-1 rounded-full">
+                            Riwayat nilai dan analisis jawabanmu.
+                        </p>
+                    </div>
                 </div>
-                <div>
-                    <h2 className="text-3xl font-extrabold text-gray-800 drop-shadow-sm">Hasil Ujian</h2>
-                    <p className="text-gray-600 text-sm mt-1 font-medium bg-white/30 inline-block px-3 py-1 rounded-full">
-                        Riwayat nilai dan analisis jawabanmu.
-                    </p>
+
+                {/* FILTERS */}
+                <div className="flex flex-wrap gap-2">
+                    <select 
+                        value={filterCategory}
+                        onChange={(e) => setFilterCategory(e.target.value as any)}
+                        className="px-4 py-2 rounded-lg border border-gray-200 shadow-sm text-sm font-bold text-gray-700 focus:ring-2 focus:ring-purple-500 outline-none"
+                    >
+                        <option value="all">📂 Semua Mapel</option>
+                        <option value="Literasi">📖 Literasi</option>
+                        <option value="Numerasi">📐 Numerasi</option>
+                    </select>
+
+                    <select 
+                        value={filterScore}
+                        onChange={(e) => setFilterScore(e.target.value as any)}
+                        className="px-4 py-2 rounded-lg border border-gray-200 shadow-sm text-sm font-bold text-gray-700 focus:ring-2 focus:ring-purple-500 outline-none"
+                    >
+                        <option value="all">🎯 Semua Nilai</option>
+                        <option value="above70">✅ Tuntas (≥70)</option>
+                        <option value="under70">⚠️ Belum Tuntas (&lt;70)</option>
+                    </select>
                 </div>
             </div>
 
-            {results.length === 0 ? (
+            {filteredResults.length === 0 ? (
                  <div className="bg-white/60 backdrop-blur-xl p-16 rounded-3xl shadow-lg text-center border-2 border-dashed border-white/50">
                     <span className="text-6xl block mb-6 opacity-70">📭</span>
-                    <h3 className="text-2xl font-bold text-gray-800 mb-2">Belum Ada Hasil</h3>
+                    <h3 className="text-2xl font-bold text-gray-800 mb-2">Data Tidak Ditemukan</h3>
                     <p className="text-gray-600 max-w-md mx-auto">
-                        Kamu belum mengerjakan ujian apapun. Silakan kerjakan ujian di menu <b>Ujian</b>.
+                        Belum ada hasil ujian yang sesuai dengan filter yang dipilih.
                     </p>
                  </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {results.map((res) => (
-                        <div key={res.id} className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100 flex flex-col">
+                    {filteredResults.map((res) => {
+                        const score = Math.round(Number(res.score));
+                        const isPassed = score >= 70;
+
+                        return (
+                        <div key={res.id} className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100 flex flex-col hover:shadow-xl transition-shadow">
                             <div className={`h-2 w-full ${res.category === 'Numerasi' ? 'bg-orange-500' : 'bg-purple-600'}`}></div>
                             <div className="p-6 flex-1 flex flex-col">
                                 <div className="flex justify-between items-start mb-4">
@@ -138,47 +185,57 @@ const StudentResults: React.FC<StudentResultsProps> = ({ username }) => {
                                     }`}>
                                         {res.category}
                                     </span>
-                                    <span className="text-xs text-gray-400">{new Date(res.timestamp).toLocaleDateString()}</span>
+                                    <span className="text-xs text-gray-400 font-mono">{new Date(res.timestamp).toLocaleDateString()}</span>
                                 </div>
-                                <h3 className="text-lg font-bold text-gray-800 mb-1">{res.examTitle}</h3>
-                                <div className="mt-4 flex items-center justify-between">
-                                     <div className="text-center">
-                                         <p className="text-xs text-gray-500 uppercase font-bold">Nilai Akhir</p>
-                                         <p className="text-4xl font-extrabold text-gray-800">{Math.round(Number(res.score))}</p>
+                                
+                                <h3 className="text-lg font-bold text-gray-800 mb-4 line-clamp-2 min-h-[3.5rem]">{res.examTitle}</h3>
+                                
+                                <div className="mt-auto pt-4 border-t border-gray-50 flex items-center justify-between">
+                                     <div className="flex flex-col">
+                                         <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Nilai Akhir</p>
+                                         <p className={`text-4xl font-extrabold ${isPassed ? 'text-green-600' : 'text-red-500'}`}>
+                                             {score}
+                                         </p>
+                                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded w-fit mt-1 ${isPassed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                             {isPassed ? 'TUNTAS' : 'BELUM TUNTAS'}
+                                         </span>
                                      </div>
-                                     <div className="text-right">
-                                         {/* Simple Donut Chart Representation or just text */}
+                                     <div className="text-right self-end">
                                          <button 
                                             onClick={() => handleViewDetails(res)}
-                                            className="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 shadow transition-transform active:scale-95"
+                                            className="bg-gray-800 text-white text-xs font-bold px-4 py-2.5 rounded-lg hover:bg-black shadow transition-transform active:scale-95 flex items-center gap-1"
                                          >
-                                             Lihat Detail
+                                             <span>👁️</span> Detail
                                          </button>
                                      </div>
                                 </div>
                             </div>
                         </div>
-                    ))}
+                    )})}
                 </div>
             )}
 
             {/* Analysis Modal */}
             {isModalOpen && selectedResult && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl w-[600px] max-h-[80vh] flex flex-col shadow-2xl">
-                        <div className="p-6 border-b bg-gray-50 rounded-t-2xl flex justify-between items-center">
+                    <div className="bg-white rounded-2xl w-[600px] max-h-[80vh] flex flex-col shadow-2xl animate-scaleIn">
+                        <div className={`p-6 border-b rounded-t-2xl flex justify-between items-center ${
+                             Math.round(Number(selectedResult.score)) >= 70 ? 'bg-green-50' : 'bg-red-50'
+                        }`}>
                             <div>
                                 <h3 className="font-bold text-xl text-gray-800">Detail Jawaban</h3>
-                                <p className="text-sm text-gray-500">{selectedResult.examTitle}</p>
+                                <p className="text-sm text-gray-500 line-clamp-1 max-w-xs">{selectedResult.examTitle}</p>
                             </div>
                             <div className="text-right">
-                                <span className="block text-2xl font-bold text-blue-600">{Math.round(Number(selectedResult.score))}</span>
+                                <span className={`block text-3xl font-extrabold ${
+                                    Math.round(Number(selectedResult.score)) >= 70 ? 'text-green-600' : 'text-red-600'
+                                }`}>{Math.round(Number(selectedResult.score))}</span>
                                 <span className="text-xs font-bold text-gray-400 uppercase">Skor Kamu</span>
                             </div>
                         </div>
                         
-                        <div className="p-6 overflow-y-auto bg-gray-50/50">
-                            <div className="grid grid-cols-6 gap-2 text-xs font-bold uppercase text-gray-500 mb-2 px-2">
+                        <div className="p-6 overflow-y-auto bg-white">
+                            <div className="grid grid-cols-6 gap-2 text-xs font-bold uppercase text-gray-400 mb-3 px-2">
                                 <div className="col-span-1 text-center">No</div>
                                 <div className="col-span-1 text-center">Status</div>
                                 <div className="col-span-2 text-center">Jawabanmu</div>
@@ -186,17 +243,17 @@ const StudentResults: React.FC<StudentResultsProps> = ({ username }) => {
                             </div>
                             <div className="space-y-2">
                                 {analysis.map((item) => (
-                                    <div key={item.questionNo} className={`grid grid-cols-6 gap-2 items-center p-3 rounded-lg border ${
-                                        item.isCorrect ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+                                    <div key={item.questionNo} className={`grid grid-cols-6 gap-2 items-center p-3 rounded-xl border ${
+                                        item.isCorrect ? 'bg-green-50/50 border-green-100' : 'bg-red-50/50 border-red-100'
                                     }`}>
-                                        <div className="col-span-1 text-center font-bold text-gray-700">{item.questionNo}</div>
+                                        <div className="col-span-1 text-center font-bold text-gray-600 bg-white w-8 h-8 rounded-full flex items-center justify-center shadow-sm mx-auto">{item.questionNo}</div>
                                         <div className="col-span-1 text-center text-lg">
                                             {item.isCorrect ? '✅' : '❌'}
                                         </div>
-                                        <div className="col-span-2 text-center font-mono text-sm font-bold text-gray-800">
+                                        <div className={`col-span-2 text-center font-mono text-sm font-bold ${item.isCorrect ? 'text-green-700' : 'text-red-700'}`}>
                                             {item.studentAnswer}
                                         </div>
-                                        <div className="col-span-2 text-center font-mono text-sm text-gray-500">
+                                        <div className="col-span-2 text-center font-mono text-sm text-gray-500 bg-gray-100 rounded py-1">
                                             {item.correctAnswer}
                                         </div>
                                     </div>
@@ -204,8 +261,8 @@ const StudentResults: React.FC<StudentResultsProps> = ({ username }) => {
                             </div>
                         </div>
 
-                        <div className="p-4 border-t flex justify-end">
-                            <button onClick={() => setIsModalOpen(false)} className="px-6 py-2 bg-gray-800 text-white rounded-lg font-bold hover:bg-black transition-colors">
+                        <div className="p-4 border-t flex justify-end bg-gray-50 rounded-b-2xl">
+                            <button onClick={() => setIsModalOpen(false)} className="px-6 py-2 bg-gray-900 text-white rounded-lg font-bold hover:bg-black transition-colors shadow-lg">
                                 Tutup
                             </button>
                         </div>
