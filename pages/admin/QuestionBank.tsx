@@ -56,27 +56,41 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
     }
   }, [selectedPacketId, userRole, username]);
 
-  // --- Helper to Auto Update Packet Count ---
-  const updatePacketQuestionCount = (packetId: string) => {
+  // --- Helper to Auto Update Packet Metadata (Total & Types) ---
+  const updatePacketMetadata = (packetId: string) => {
       const packetQuestions = storage.questions.getByPacketId(packetId);
       
-      // Calculate new total based on the highest question number present
-      // This ensures if you have soal 1, 2, 4 -> Total is 4 (so loop works correctly)
+      // 1. Calculate Total Questions (Based on highest number)
       const maxNumber = packetQuestions.length > 0 
           ? Math.max(...packetQuestions.map(q => q.number)) 
           : 0;
       
-      // Alternative: Just use length if strict sequence isn't required
-      // const count = packetQuestions.length;
+      // 2. Calculate Question Types Summary (e.g. "PG: 10, BS: 5")
+      const typeCounts: Record<string, number> = {};
+      packetQuestions.forEach(q => {
+          const typeLabel = q.type; // Uses values from Enum (PG, PGK, BS, etc)
+          typeCounts[typeLabel] = (typeCounts[typeLabel] || 0) + 1;
+      });
+
+      const typeString = Object.entries(typeCounts)
+          .map(([type, count]) => `${type}:${count}`)
+          .join(', ');
 
       const currentPacket = storage.packets.getAll().find(p => p.id === packetId);
       
-      if (currentPacket && currentPacket.totalQuestions !== maxNumber) {
-          const updatedPacket = { ...currentPacket, totalQuestions: maxNumber };
-          storage.packets.update(packetId, updatedPacket);
-          
-          // Update local state immediately
-          setPackets(prev => prev.map(p => p.id === packetId ? updatedPacket : p));
+      // Update if data changed
+      if (currentPacket) {
+          if (currentPacket.totalQuestions !== maxNumber || currentPacket.questionTypes !== typeString) {
+              const updatedPacket = { 
+                  ...currentPacket, 
+                  totalQuestions: maxNumber,
+                  questionTypes: typeString 
+              };
+              storage.packets.update(packetId, updatedPacket);
+              
+              // Update local state immediately
+              setPackets(prev => prev.map(p => p.id === packetId ? updatedPacket : p));
+          }
       }
   };
 
@@ -223,9 +237,9 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
       }
       storage.questions.add(qToSave);
       
-      // AUTO UPDATE PACKET TOTAL QUESTIONS
+      // AUTO UPDATE PACKET METADATA (Total & Types)
       if (selectedPacketId) {
-          updatePacketQuestionCount(selectedPacketId);
+          updatePacketMetadata(selectedPacketId);
       }
 
       setQuestions(storage.questions.getByPacketId(selectedPacketId!));
@@ -236,9 +250,9 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
       if (confirm("Hapus soal ini?")) {
           storage.questions.delete(id);
           
-          // AUTO UPDATE PACKET TOTAL QUESTIONS
+          // AUTO UPDATE PACKET METADATA (Total & Types)
           if (selectedPacketId) {
-              updatePacketQuestionCount(selectedPacketId);
+              updatePacketMetadata(selectedPacketId);
           }
           
           setQuestions(storage.questions.getByPacketId(selectedPacketId!));
@@ -408,6 +422,7 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
                   <span>{p.category}</span>
                   <span>{p.totalQuestions} Soal</span>
               </div>
+              {p.questionTypes && <div className="text-[10px] text-gray-400 mt-1 truncate">{p.questionTypes}</div>}
             </div>
           ))}
         </div>

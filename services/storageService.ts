@@ -9,7 +9,7 @@ const KEYS = {
 
 // --- KONFIGURASI URL SCRIPT ---
 // Ganti string kosong di bawah ini dengan URL Web App Anda jika ingin terkoneksi otomatis
-const HARDCODED_API_URL = 'https://script.google.com/macros/s/AKfycbwJiR-CIk5UB_zhsoPxJ-IrAZ53kzhjyFLCxkG1Sdh9a6hHZxdcLuPeEBkrwkVwLsMIFw/exec'; 
+const HARDCODED_API_URL = 'https://script.google.com/macros/s/AKfycbyPJHw5dZWYBnDnARKLvhfhLoEXzCarnLjR6C5th1vNTYIf94FgrbVkSL9Qt9CUGjVveA/exec'; 
 
 const DEFAULT_SETTINGS: SchoolSettings = {
   schoolName: 'SMPN 3 Pacet',
@@ -81,7 +81,7 @@ const generateId = (): string => {
 };
 
 // Default URL (Fallback only)
-const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwJiR-CIk5UB_zhsoPxJ-IrAZ53kzhjyFLCxkG1Sdh9a6hHZxdcLuPeEBkrwkVwLsMIFw/exec';
+const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbyPJHw5dZWYBnDnARKLvhfhLoEXzCarnLjR6C5th1vNTYIf94FgrbVkSL9Qt9CUGjVveA/exec';
 
 export const getApiUrl = () => {
     // Priority: 1. Hardcoded, 2. LocalStorage, 3. Default
