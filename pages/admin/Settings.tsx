@@ -171,7 +171,7 @@ const Settings: React.FC = () => {
                 className="bg-orange-500 hover:bg-orange-600 text-white text-sm px-4 py-2 rounded shadow flex items-center gap-2"
                 title="Klik jika data kosong padahal URL sudah benar"
               >
-                  🛠️ Perbaiki Database (Buat Header Sheet)
+                  🛠️ Perbaiki Database (Buat Header & Default)
               </button>
                <button 
                 onClick={handleSeedData}
@@ -184,7 +184,7 @@ const Settings: React.FC = () => {
 
           <details className="group mt-4">
               <summary className="cursor-pointer text-sm font-bold text-gray-600 hover:text-blue-800 flex items-center gap-2 p-2 hover:bg-gray-100 rounded">
-                  <span>📜</span> Update Script (Jika perlu)
+                  <span>📜</span> Update Script (Wajib jika Judul Login tidak tersimpan)
               </summary>
               <div className="mt-3 bg-white p-4 rounded border border-gray-300 shadow-inner">
                   <div className="flex justify-between items-center mb-2">
@@ -198,6 +198,7 @@ const Settings: React.FC = () => {
                     value={GAS_SCRIPT_TEMPLATE}
                     onClick={(e) => e.currentTarget.select()}
                   />
+                  <p className="text-[10px] text-gray-500 mt-2">Versi 1.6: Perbaikan penyimpanan pengaturan (Login Title) dan database.</p>
               </div>
           </details>
       </div>
@@ -224,6 +225,7 @@ const Settings: React.FC = () => {
                 onChange={e => handleChange('loginTitle', e.target.value)}
                 className="mt-1 w-full border border-gray-300 rounded-md p-2"
               />
+              <p className="text-[10px] text-orange-600 mt-1">*Jika gagal tersimpan, silakan Update Script di atas.</p>
             </div>
              <div className="grid grid-cols-2 gap-4">
               <div>

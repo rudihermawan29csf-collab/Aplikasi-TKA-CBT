@@ -1,7 +1,7 @@
 export const GAS_SCRIPT_TEMPLATE = `// --- SALIN DARI SINI KE BAWAH (JANGAN SALIN BAGIAN 'export const' DI ATAS) ---
 // ============================================================================
 // APLIKASI CBT - GOOGLE APPS SCRIPT BACKEND
-// Versi: 1.5 (Remote Setup Enabled)
+// Versi: 1.6 (Settings Upsert Fix)
 // ============================================================================
 
 // KONFIGURASI NAMA SHEET DAN KOLOM
@@ -161,6 +161,7 @@ function updateRow(sheetName, id, payload) {
 
   if (idIndex === -1) return;
 
+  var found = false;
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][idIndex]) === String(id)) {
       var rowIndex = i + 1;
@@ -182,8 +183,15 @@ function updateRow(sheetName, id, payload) {
       }
       
       sheet.getRange(rowIndex, 1, 1, headers.length).setValues([updatedRow]);
+      found = true;
       return;
     }
+  }
+
+  // --- FIX: UPSERT FOR SETTINGS ---
+  // Jika Setting belum ada (Update gagal menemukan Key), maka buat baru (Create)
+  if (!found && sheetName === 'Settings') {
+     createRow(sheetName, payload);
   }
 }
 
@@ -207,7 +215,7 @@ function deleteRow(sheetName, id) {
   }
 }
 
-// 3. SETUP FUNCTION (Dijalankan saat pertama kali)
+// 3. SETUP FUNCTION (Dijalankan saat pertama kali atau fix database)
 function setup() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheetNames = Object.keys(SCHEMA);
@@ -224,6 +232,24 @@ function setup() {
       sheet.appendRow(requiredHeaders);
       sheet.getRange(1, 1, 1, requiredHeaders.length).setFontWeight("bold");
       sheet.setFrozenRows(1);
+    }
+
+    // --- FIX: POPULATE DEFAULT SETTINGS ---
+    if (name === 'Settings' && sheet.getLastRow() === 1) {
+        var defaults = [
+          ['schoolName', 'SMPN 3 Pacet'],
+          ['loginTitle', 'CBT Online'],
+          ['academicYear', '2025/2026'],
+          ['semester', 'Genap'],
+          ['adminPassword', 'admin'],
+          ['teacherLiterasiPassword', 'guru'],
+          ['teacherNumerasiPassword', 'guru']
+        ];
+        // Pastikan urutan kolom Key, Value sesuai dengan defaults
+        // Header index 0 = Key, 1 = Value
+        defaults.forEach(function(row) {
+            sheet.appendRow(row);
+        });
     }
   });
 }
