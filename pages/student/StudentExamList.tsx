@@ -8,7 +8,7 @@ interface StudentExamListProps {
 }
 
 const StudentExamList: React.FC<StudentExamListProps> = ({ username, onStartExam }) => {
-  const [availableExams, setAvailableExams] = useState<Array<{ exam: Exam, packet?: Packet, isTaken: boolean, lastScore?: number }>>([]);
+  const [availableExams, setAvailableExams] = useState<Array<{ exam: Exam, packet?: Packet, isTaken: boolean, lastScore?: number, attemptCount: number }>>([]);
 
   useEffect(() => {
     const allStudents = storage.students.getAll();
@@ -27,20 +27,24 @@ const StudentExamList: React.FC<StudentExamListProps> = ({ username, onStartExam
             const endDate = new Date(e.scheduledEnd);
             const isWithinTime = startDate <= now && endDate >= now;
             
-            // Kita HAPUS filter !isTaken agar siswa bisa melihat ujian yang sudah dikerjakan
             return isTargetClass && isActive && isWithinTime;
         }).map(exam => {
-            // Cek apakah sudah pernah mengerjakan
-            const pastResults = allResults.filter(r => r.examId === exam.id && r.studentName === me.name);
-            const isTaken = pastResults.length > 0;
-            // Ambil nilai terakhir jika ada
-            const lastScore = isTaken ? pastResults[pastResults.length - 1].score : undefined;
+            // Get all attempts for this exam by this student
+            const attempts = allResults.filter(r => r.examId === exam.id && r.studentName === me.name);
+            
+            // Sort by timestamp desc to get latest
+            attempts.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            
+            const isTaken = attempts.length > 0;
+            const lastScore = isTaken ? attempts[0].score : undefined;
+            const attemptCount = attempts.length;
 
             return {
                 exam,
                 packet: allPackets.find(p => p.id === exam.packetId),
                 isTaken,
-                lastScore
+                lastScore,
+                attemptCount
             };
         });
 
@@ -90,7 +94,7 @@ const StudentExamList: React.FC<StudentExamListProps> = ({ username, onStartExam
          </div>
        ) : (
          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {availableExams.map(({ exam, packet, isTaken, lastScore }) => (
+            {availableExams.map(({ exam, packet, isTaken, lastScore, attemptCount }) => (
                 <div key={exam.id} className="bg-white/70 backdrop-blur-xl rounded-3xl shadow-xl hover:shadow-2xl hover:bg-white/80 transition-all duration-300 overflow-hidden border border-white/50 flex flex-col group relative transform hover:-translate-y-1">
                     {/* Glassy Color Bar */}
                     <div className={`h-2 w-full ${packet?.category === 'Numerasi' ? 'bg-orange-500/80' : 'bg-blue-600/80'}`}></div>
@@ -106,9 +110,12 @@ const StudentExamList: React.FC<StudentExamListProps> = ({ username, onStartExam
                                  {packet?.category || 'Umum'}
                              </span>
                              {isTaken && (
-                                 <span className="px-2 py-1 rounded bg-green-100 text-green-700 text-[10px] font-bold border border-green-200">
-                                     Sudah Dikerjakan (Nilai: {Math.round(lastScore || 0)})
-                                 </span>
+                                 <div className="flex flex-col items-end mt-1">
+                                    <span className="px-2 py-1 rounded bg-green-100 text-green-700 text-[10px] font-bold border border-green-200 mb-1">
+                                        Sudah Dikerjakan (Nilai: {Math.round(lastScore || 0)})
+                                    </span>
+                                    <span className="text-[9px] text-gray-500 font-bold bg-white/50 px-1 rounded">Percobaan ke-{attemptCount}</span>
+                                 </div>
                              )}
                         </div>
 

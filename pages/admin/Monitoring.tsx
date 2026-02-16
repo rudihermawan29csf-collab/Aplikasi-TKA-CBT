@@ -75,7 +75,12 @@ const Monitoring: React.FC<MonitoringProps> = ({ userRole, username }) => {
 
         // 2. Map All Students to Status
         let tempRows: MonitorRow[] = enrolledStudents.map((s) => {
-            const matchedResult = allResults.find(r => r.studentName === s.name) || null;
+            // Find ALL attempts for this student
+            const studentResults = allResults.filter(r => r.studentName === s.name);
+            
+            // Get the LATEST attempt (using slice().reverse().find() or grabbing last element)
+            // Since getAll() pushes new items, the last one is the latest.
+            const matchedResult = studentResults.length > 0 ? studentResults[studentResults.length - 1] : null;
 
             let status: MonitorRow['status'] = 'offline';
             let score: number | string = 0;
