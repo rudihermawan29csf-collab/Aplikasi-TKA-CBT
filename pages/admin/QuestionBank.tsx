@@ -101,15 +101,23 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
     const templateData = [
         {
             "Nomor": 1,
-            "Tipe (PG/BS)": "PG",
+            "Tipe (PG/PGK/BS)": "PG",
             "Stimulus": "Tulis wacana atau link gambar disini...",
             "Pertanyaan": "Contoh Pertanyaan Pilihan Ganda?",
             "Opsi Jawaban (Pisahkan dengan titik koma ;)": "Opsi A; Opsi B; Opsi C; Opsi D",
-            "Kunci Jawaban (Angka 0=A, 1=B, dst)": 0
+            "Kunci Jawaban (Angka 0=A, 1=B, dst)": "0"
         },
         {
             "Nomor": 2,
-            "Tipe (PG/BS)": "BS",
+            "Tipe (PG/PGK/BS)": "PGK",
+            "Stimulus": "Stimulus Soal Pilihan Ganda Kompleks",
+            "Pertanyaan": "Pilihlah lebih dari satu jawaban yang benar",
+            "Opsi Jawaban (Pisahkan dengan titik koma ;)": "Opsi A; Opsi B; Opsi C; Opsi D",
+            "Kunci Jawaban (Angka 0=A, 1=B, dst)": "0;2" // Contoh kunci A dan C
+        },
+        {
+            "Nomor": 3,
+            "Tipe (PG/PGK/BS)": "BS",
             "Stimulus": "Stimulus Soal Benar Salah",
             "Pertanyaan": "Pilih Benar atau Salah",
             "Opsi Jawaban (Pisahkan dengan titik koma ;)": "Pernyataan 1; Pernyataan 2",
@@ -144,12 +152,17 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
 
                 data.forEach((row: any) => {
                     try {
-                        const typeRaw = row["Tipe (PG/BS)"] || "PG";
-                        const type = typeRaw.toUpperCase() === "BS" ? QuestionType.TRUE_FALSE : QuestionType.MULTIPLE_CHOICE;
+                        // Handle column name variation (Old vs New Template)
+                        const typeRaw = (row["Tipe (PG/PGK/BS)"] || row["Tipe (PG/BS)"] || "PG").toString().toUpperCase();
+                        
+                        let type = QuestionType.MULTIPLE_CHOICE;
+                        if (typeRaw === 'BS') type = QuestionType.TRUE_FALSE;
+                        if (typeRaw === 'PGK') type = QuestionType.COMPLEX_MULTIPLE_CHOICE;
                         
                         const optionsRaw = row["Opsi Jawaban (Pisahkan dengan titik koma ;)"] || "";
                         const optionsArray = optionsRaw.toString().split(';').map((s: string) => s.trim()).filter((s: string) => s !== "");
-                        
+                        const keysRaw = (row["Kunci Jawaban (Angka 0=A, 1=B, dst)"] || "").toString();
+
                         let finalOptions = '[]';
                         let matchingPairs = '[]';
                         let correctAnswerIndex = 0;
@@ -160,7 +173,7 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
                             // Asumsi input excel: Opsi Jawaban = "Pernyataan 1; Pernyataan 2"
                             // Kunci = "a;b" (a=Benar, b=Salah)
                             finalOptions = JSON.stringify(["Benar", "Salah"]);
-                            const keys = (row["Kunci Jawaban (Angka 0=A, 1=B, dst)"] || "").toString().split(';');
+                            const keys = keysRaw.split(';');
                             
                             const pairs = optionsArray.map((opt: string, idx: number) => ({
                                 left: opt,
@@ -168,10 +181,17 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ userRole, username }) => {
                             }));
                             matchingPairs = JSON.stringify(pairs);
 
+                        } else if (type === QuestionType.COMPLEX_MULTIPLE_CHOICE) {
+                            // Logic Import PGK
+                            finalOptions = JSON.stringify(optionsArray);
+                            // Parse "0;2" -> [0, 2]
+                            const indices = keysRaw.split(';').map(k => parseInt(k.trim())).filter(n => !isNaN(n));
+                            correctAnswerIndices = JSON.stringify(indices);
+
                         } else {
                             // Logic Import PG
                             finalOptions = JSON.stringify(optionsArray);
-                            correctAnswerIndex = parseInt(row["Kunci Jawaban (Angka 0=A, 1=B, dst)"] || "0");
+                            correctAnswerIndex = parseInt(keysRaw || "0");
                         }
 
                         const newQ: Question = {
