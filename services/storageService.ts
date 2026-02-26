@@ -127,6 +127,67 @@ const sendToApi = async (action: 'create' | 'update' | 'delete', sheet: string, 
     }
 };
 
+// Helper to parse single key (A->0, 1->1, "Jakarta"->Index)
+const parseAnswerKey = (val: any, optionsStr?: string): number => {
+    // 1. Try Number/Letter
+    if (typeof val === 'number') {
+        return val > 0 ? val - 1 : val;
+    }
+    if (typeof val === 'string') {
+        const clean = val.trim().toUpperCase();
+        if (['A','B','C','D','E'].includes(clean)) {
+            return clean.charCodeAt(0) - 65;
+        }
+        const num = Number(clean);
+        if (!isNaN(num)) {
+             return num > 0 ? num - 1 : num;
+        }
+    }
+
+    // 2. Try Text Match (if options provided)
+    if (optionsStr && typeof val === 'string') {
+        try {
+            const opts = JSON.parse(optionsStr);
+            if (Array.isArray(opts)) {
+                // Try exact match first, then loose match
+                const valClean = val.trim().toLowerCase();
+                const idx = opts.findIndex((o: string) => o.trim().toLowerCase() === valClean);
+                if (idx !== -1) return idx;
+            }
+        } catch (e) {}
+    }
+
+    return 0;
+};
+
+// Helper to parse complex keys ("A,B" -> "[0,1]")
+const parseComplexKey = (val: any): string => {
+    try {
+        // If it's already a valid JSON array, return it
+        const parsed = JSON.parse(val);
+        if (Array.isArray(parsed)) return val;
+    } catch (e) {
+        // Not JSON, try parsing as comma separated
+    }
+
+    if (typeof val === 'string') {
+        const parts = val.split(',').map(p => {
+            const clean = p.trim().toUpperCase();
+            if (['A','B','C','D','E'].includes(clean)) {
+                return clean.charCodeAt(0) - 65;
+            }
+            const num = Number(clean);
+            if (!isNaN(num)) {
+                return num > 0 ? num - 1 : num;
+            }
+            return -1;
+        }).filter(n => n !== -1);
+        return JSON.stringify(parts);
+    }
+    
+    return '[]';
+};
+
 export const storage = {
   sync: async (): Promise<boolean> => {
       const url = getApiUrl();
@@ -145,13 +206,13 @@ export const storage = {
               // Normalize Packets
               CACHE.Packets = json.data.Packets || [];
 
-              // Normalize Questions (Convert String Type to Enum)
+              // Normalize Questions (Convert String Type to Enum & Robust Key Parsing)
               CACHE.Questions = (json.data.Questions || []).map((q: any) => ({
                   ...q,
                   type: mapDBTypeToEnum(q.type),
                   options: q.options || '[]',
-                  correctAnswerIndex: Number(q.correctAnswerIndex),
-                  correctAnswerIndices: q.correctAnswerIndices || '[]',
+                  correctAnswerIndex: parseAnswerKey(q.correctAnswerIndex, q.options),
+                  correctAnswerIndices: parseComplexKey(q.correctAnswerIndices || '[]'),
                   matchingPairs: q.matchingPairs || '[]'
               }));
 

@@ -39,8 +39,30 @@ const ExamInterface: React.FC<ExamInterfaceProps> = ({ examId, username, onFinis
     const e = storage.exams.getAll().find(ex => ex.id === examId);
     if (e) {
       setExam(e);
+      const packet = storage.packets.getAll().find(p => p.id === e.packetId);
       let rawQs = storage.questions.getByPacketId(e.packetId);
       
+      // DEDUPLICATE QUESTIONS BY NUMBER
+      // If there are multiple questions with the same number, take the latest one (assuming order in DB matters or just to be safe)
+      const uniqueQsMap = new Map();
+      rawQs.forEach(q => {
+          // Normalize number: "1" and 1 should be same key
+          const numKey = String(q.number).trim();
+          uniqueQsMap.set(numKey, q);
+      });
+      
+      // Convert back to array and sort by number
+      rawQs = Array.from(uniqueQsMap.values()).sort((a, b) => {
+          const numA = Number(a.number) || 0;
+          const numB = Number(b.number) || 0;
+          return numA - numB;
+      });
+
+      // LIMIT BY PACKET COUNT (Safety against duplicates that have different numbers)
+      if (packet && packet.totalQuestions > 0 && rawQs.length > packet.totalQuestions) {
+          rawQs = rawQs.slice(0, packet.totalQuestions);
+      }
+
       // 1. ACAK URUTAN SOAL
       // Kita clone deep agar tidak merusak urutan asli di storage
       let shuffledQs = shuffleArray(rawQs).map(q => ({...q}));
@@ -190,11 +212,11 @@ const ExamInterface: React.FC<ExamInterfaceProps> = ({ examId, username, onFinis
              } catch(e) {}
         }
         else if (q.type === QuestionType.COMPLEX_MULTIPLE_CHOICE) {
-            const correctIndices = JSON.parse(q.correctAnswerIndices || '[]');
+            const correctIndices = JSON.parse(q.correctAnswerIndices || '[]').map((x: any) => Number(x));
             const studentIndices = studentAns || []; 
             if (Array.isArray(studentIndices) && 
                 studentIndices.length === correctIndices.length && 
-                studentIndices.every((val: number) => correctIndices.includes(val))) {
+                studentIndices.every((val: number) => correctIndices.includes(Number(val)))) {
                 correctCount++;
             }
         }
@@ -409,7 +431,7 @@ const ExamInterface: React.FC<ExamInterfaceProps> = ({ examId, username, onFinis
                          className={`w-10 h-10 flex-shrink-0 rounded-lg text-sm font-bold border-2 transition-all duration-200 ${
                              currentIdx === i ? 'bg-blue-600 text-white border-blue-600 scale-110 shadow-md ring-2 ring-blue-200' : 
                              doubtful.has(q.id) ? 'bg-yellow-400 text-white border-yellow-500' :
-                             answers[q.id] ? 'bg-green-500 text-white border-green-600' : 
+                             answers[q.id] !== undefined ? 'bg-green-500 text-white border-green-600' : 
                              'bg-white text-gray-500 border-gray-300 hover:bg-gray-100'
                          }`}>
                          {i+1}
