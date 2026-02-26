@@ -129,22 +129,28 @@ const sendToApi = async (action: 'create' | 'update' | 'delete', sheet: string, 
 
 // Helper to parse single key (A->0, 1->1, "Jakarta"->Index)
 const parseAnswerKey = (val: any, optionsStr?: string): number => {
-    // 1. Try Number/Letter
+    // 1. Try Number (Assume 0-based index from App/DB)
     if (typeof val === 'number') {
-        return val > 0 ? val - 1 : val;
+        return val;
     }
+    
+    // 2. Try String Parsing
     if (typeof val === 'string') {
         const clean = val.trim().toUpperCase();
+        
+        // Handle Letters A-E -> 0-4
         if (['A','B','C','D','E'].includes(clean)) {
             return clean.charCodeAt(0) - 65;
         }
+        
+        // Handle String Numbers "1"-"5" -> 0-4 (Assume manual 1-based input)
         const num = Number(clean);
         if (!isNaN(num)) {
              return num > 0 ? num - 1 : num;
         }
     }
 
-    // 2. Try Text Match (if options provided)
+    // 3. Try Text Match (if options provided)
     if (optionsStr && typeof val === 'string') {
         try {
             const opts = JSON.parse(optionsStr);
@@ -178,6 +184,7 @@ const parseComplexKey = (val: any): string => {
             }
             const num = Number(clean);
             if (!isNaN(num)) {
+                // Assume string input "1,2" is 1-based
                 return num > 0 ? num - 1 : num;
             }
             return -1;
