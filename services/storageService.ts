@@ -129,12 +129,26 @@ const sendToApi = async (action: 'create' | 'update' | 'delete', sheet: string, 
 
 // Helper to parse single key (A->0, 1->1, "Jakarta"->Index)
 const parseAnswerKey = (val: any, optionsStr?: string): number => {
-    // 1. Try Number (Assume 0-based index from App/DB)
+    // 1. Try Text Match (Priority: If the key matches an option text exactly, use it)
+    if (optionsStr) {
+        try {
+            const opts = JSON.parse(optionsStr);
+            if (Array.isArray(opts)) {
+                const valStr = String(val).trim().toLowerCase();
+                const idx = opts.findIndex((o: string) => String(o).trim().toLowerCase() === valStr);
+                if (idx !== -1) return idx;
+            }
+        } catch (e) {}
+    }
+
+    // 2. Try Number (Heuristic: 1-based for humans, 0-based for 0)
     if (typeof val === 'number') {
-        return val;
+        // If 0, assume 0-based (Index 0).
+        // If 1-9, assume 1-based (1=A -> 0).
+        return val > 0 ? val - 1 : val;
     }
     
-    // 2. Try String Parsing
+    // 3. Try String Parsing
     if (typeof val === 'string') {
         const clean = val.trim().toUpperCase();
         
@@ -143,24 +157,12 @@ const parseAnswerKey = (val: any, optionsStr?: string): number => {
             return clean.charCodeAt(0) - 65;
         }
         
-        // Handle String Numbers "1"-"5" -> 0-4 (Assume manual 1-based input)
+        // Handle String Numbers "0"-"9"
         const num = Number(clean);
         if (!isNaN(num)) {
+             // Same heuristic: "1" -> 0, "0" -> 0
              return num > 0 ? num - 1 : num;
         }
-    }
-
-    // 3. Try Text Match (if options provided)
-    if (optionsStr && typeof val === 'string') {
-        try {
-            const opts = JSON.parse(optionsStr);
-            if (Array.isArray(opts)) {
-                // Try exact match first, then loose match
-                const valClean = val.trim().toLowerCase();
-                const idx = opts.findIndex((o: string) => o.trim().toLowerCase() === valClean);
-                if (idx !== -1) return idx;
-            }
-        } catch (e) {}
     }
 
     return 0;
@@ -184,7 +186,7 @@ const parseComplexKey = (val: any): string => {
             }
             const num = Number(clean);
             if (!isNaN(num)) {
-                // Assume string input "1,2" is 1-based
+                // Assume 1-based for comma separated strings "1,2" -> [0,1]
                 return num > 0 ? num - 1 : num;
             }
             return -1;

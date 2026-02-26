@@ -58,20 +58,42 @@ const StudentResults: React.FC<StudentResultsProps> = ({ username }) => {
     }, [username]);
 
     const handleViewDetails = (result: ResultDetail) => {
-        const questions = storage.questions.getByPacketId(result.packetId);
+        let questions = storage.questions.getByPacketId(result.packetId);
         const studentAnswers = JSON.parse(result.answers);
+        const packet = storage.packets.getAll().find(p => p.id === result.packetId);
 
-        const analyzed: AnswerAnalysis[] = questions.sort((a,b) => a.number - b.number).map(q => {
+        // --- DEDUPLICATE & LIMIT LOGIC (MATCHING EXAM INTERFACE) ---
+        const uniqueQsMap = new Map();
+        questions.forEach(q => {
+             const numKey = String(q.number).trim();
+             uniqueQsMap.set(numKey, q);
+        });
+        
+        questions = Array.from(uniqueQsMap.values()).sort((a, b) => {
+            const numA = Number(a.number) || 0;
+            const numB = Number(b.number) || 0;
+            return numA - numB;
+        });
+
+        if (packet && packet.totalQuestions > 0 && questions.length > packet.totalQuestions) {
+            questions = questions.slice(0, packet.totalQuestions);
+        }
+        // -----------------------------------------------------------
+
+        const analyzed: AnswerAnalysis[] = questions.map(q => {
             const ans = studentAnswers[q.id];
             let isCorrect = false;
             let displayAns = '-';
             let displayKey = '-';
 
             if (q.type === QuestionType.MULTIPLE_CHOICE) {
-                isCorrect = ans === q.correctAnswerIndex;
+                // Ensure strict number comparison like in ExamInterface
+                isCorrect = Number(ans) === Number(q.correctAnswerIndex);
+                
                 const opts = JSON.parse(q.options || '[]');
-                displayAns = ans !== undefined ? String.fromCharCode(65 + ans) : 'Kosong';
-                displayKey = String.fromCharCode(65 + q.correctAnswerIndex);
+                // Handle 0 index correctly
+                displayAns = (ans !== undefined && ans !== null) ? String.fromCharCode(65 + Number(ans)) : 'Kosong';
+                displayKey = String.fromCharCode(65 + Number(q.correctAnswerIndex));
             } 
             else if (q.type === QuestionType.TRUE_FALSE) {
                  try {
@@ -84,14 +106,15 @@ const StudentResults: React.FC<StudentResultsProps> = ({ username }) => {
                  } catch(e) {}
             }
             else if (q.type === QuestionType.COMPLEX_MULTIPLE_CHOICE) {
-                const correctIndices = JSON.parse(q.correctAnswerIndices || '[]');
-                if (Array.isArray(ans) && 
-                    ans.length === correctIndices.length && 
-                    ans.every((val: number) => correctIndices.includes(val))) {
+                const correctIndices = JSON.parse(q.correctAnswerIndices || '[]').map((x: any) => Number(x));
+                const studentIndices = ans || [];
+                if (Array.isArray(studentIndices) && 
+                    studentIndices.length === correctIndices.length && 
+                    studentIndices.every((val: number) => correctIndices.includes(Number(val)))) {
                     isCorrect = true;
                 }
-                displayAns = Array.isArray(ans) ? ans.map((i: number) => String.fromCharCode(65+i)).join(', ') : '-';
-                displayKey = correctIndices.map((i: number) => String.fromCharCode(65+i)).join(', ');
+                displayAns = Array.isArray(studentIndices) ? studentIndices.map((i: number) => String.fromCharCode(65+Number(i))).join(', ') : '-';
+                displayKey = correctIndices.map((i: number) => String.fromCharCode(65+Number(i))).join(', ');
             }
 
             return {

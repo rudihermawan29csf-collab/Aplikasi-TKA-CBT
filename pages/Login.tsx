@@ -143,9 +143,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </p>
 
             <div className="bg-black/20 p-1 rounded-xl flex mb-6 backdrop-blur-md border border-white/10">
-                {[UserRole.STUDENT, UserRole.TEACHER, UserRole.ADMIN].map((r) => (
+                {[UserRole.STUDENT, UserRole.TEACHER, UserRole.ADMIN].map((r, idx) => (
                     <button
-                    key={r}
+                    key={`${r}-${idx}`}
                     onClick={() => setRole(r)}
                     className={`flex-1 py-1.5 text-xs font-bold uppercase tracking-wide rounded-lg transition-all duration-300 ${
                         role === r
@@ -183,7 +183,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                                 required
                             >
                                 <option value="" className="text-gray-900 bg-white">Pilih Kelas</option>
-                                {classes.map(c => <option key={c} value={c} className="text-gray-900 bg-white">{c}</option>)}
+                                {classes.map((c, idx) => <option key={`${c}-${idx}`} value={c} className="text-gray-900 bg-white">{c}</option>)}
                             </select>
                             <div className="absolute right-4 top-3.5 pointer-events-none text-white/80">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -206,8 +206,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                                 <option value="" className="text-gray-900 bg-white">
                                     {students.length === 0 ? "Data Kosong (Klik Refresh)" : "Pilih Nama"}
                                 </option>
-                                {filteredStudents.map(s => (
-                                    <option key={s.id} value={s.id} className="text-gray-900 bg-white">{s.name} ({s.nis})</option>
+                                {filteredStudents.map((s, idx) => (
+                                    <option key={`${s.id}-${idx}`} value={s.id} className="text-gray-900 bg-white">{s.name} ({s.nis})</option>
                                 ))}
                             </select>
                              <div className="absolute right-4 top-3.5 pointer-events-none text-white/80">
