@@ -114,7 +114,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     <div 
       className="min-h-screen flex items-center justify-center p-4 font-sans bg-gray-900"
       style={{ 
-        backgroundImage: `url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2864&auto=format&fit=crop')`,
+        backgroundImage: `url('https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=2500&auto=format&fit=crop')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat'

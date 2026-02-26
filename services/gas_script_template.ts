@@ -252,6 +252,23 @@ function setup() {
         defaults.forEach(function(row) {
             sheet.appendRow(row);
         });
+    } else if (name !== 'Settings') {
+        // --- FIX: ADD MISSING COLUMNS AUTOMATICALLY ---
+        // Cek apakah ada kolom baru di SCHEMA yang belum ada di Sheet (misal: classTarget)
+        var currentHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+        var missingHeaders = [];
+        
+        for (var i = 0; i < requiredHeaders.length; i++) {
+            if (currentHeaders.indexOf(requiredHeaders[i]) === -1) {
+                missingHeaders.push(requiredHeaders[i]);
+            }
+        }
+        
+        if (missingHeaders.length > 0) {
+            var startCol = sheet.getLastColumn() + 1;
+            sheet.getRange(1, startCol, 1, missingHeaders.length).setValues([missingHeaders]);
+            sheet.getRange(1, startCol, 1, missingHeaders.length).setFontWeight("bold");
+        }
     }
   });
 }

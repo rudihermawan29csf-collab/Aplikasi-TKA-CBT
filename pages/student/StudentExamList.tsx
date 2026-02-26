@@ -25,7 +25,7 @@ const StudentExamList: React.FC<StudentExamListProps> = ({ username, onStartExam
         const allResults = storage.results.getAll();
 
         const filtered = allExams.filter(e => {
-            const isTargetClass = e.classTarget.split(',').includes(me.class);
+            const isTargetClass = (e.classTarget || '').split(',').includes(me.class);
             const isActive = e.isActive;
             const startDate = new Date(e.scheduledStart);
             const endDate = new Date(e.scheduledEnd);

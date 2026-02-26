@@ -96,7 +96,9 @@ const ExamSchedule: React.FC<ExamScheduleProps> = ({ userRole, username }) => {
 
   const handleEditExam = (exam: Exam) => {
       setNewExam(exam);
-      setSelectedClasses(exam.classTarget.split(','));
+      // Safely handle missing classTarget
+      const classes = exam.classTarget ? exam.classTarget.split(',') : [];
+      setSelectedClasses(classes.filter(Boolean));
       setShowModal(true);
   };
 
@@ -161,7 +163,7 @@ const ExamSchedule: React.FC<ExamScheduleProps> = ({ userRole, username }) => {
                 <span>⏱️ Durasi: {exam.durationMinutes} Menit</span>
               </div>
               <div className="mt-2 flex flex-wrap gap-1">
-                  {exam.classTarget.split(',').map(c => (
+                  {(exam.classTarget || '').split(',').filter(Boolean).map(c => (
                       <span key={c} className="bg-gray-100 px-2 py-0.5 rounded text-xs text-gray-600 border">{c}</span>
                   ))}
               </div>

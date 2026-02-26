@@ -150,6 +150,7 @@ export const storage = {
                   ...q,
                   type: mapDBTypeToEnum(q.type),
                   options: q.options || '[]',
+                  correctAnswerIndex: Number(q.correctAnswerIndex),
                   correctAnswerIndices: q.correctAnswerIndices || '[]',
                   matchingPairs: q.matchingPairs || '[]'
               }));
@@ -163,6 +164,8 @@ export const storage = {
                           if (Array.isArray(parsed)) classes = parsed.join(',');
                       } catch(err) {}
                   }
+                  // Ensure it is a string
+                  if (!classes) classes = '';
                   return { ...e, classTarget: classes };
               });
 

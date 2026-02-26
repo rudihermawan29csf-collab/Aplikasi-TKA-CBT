@@ -63,7 +63,9 @@ const ExamInterface: React.FC<ExamInterfaceProps> = ({ examId, username, onFinis
                       
                       // Cari index baru dari jawaban yang benar
                       // Jawaban benar adalah index di mana originalIdx == q.correctAnswerIndex
-                      const newCorrectIndex = shuffledOptions.findIndex(item => item.originalIdx === q.correctAnswerIndex);
+                      // Ensure strict number comparison
+                      const originalCorrectIdx = Number(q.correctAnswerIndex);
+                      const newCorrectIndex = shuffledOptions.findIndex(item => item.originalIdx === originalCorrectIdx);
                       
                       // Update question object
                       return {
@@ -168,11 +170,15 @@ const ExamInterface: React.FC<ExamInterfaceProps> = ({ examId, username, onFinis
     if (!forced && !window.confirm("Selesaikan ujian?")) return;
         
     let correctCount = 0;
+    // Count only scorable questions for the denominator if needed, but usually total questions is used.
+    // However, to be safe against "unanswerable" questions (e.g. Essay not graded yet), we stick to total questions.
+    
     questions.forEach(q => {
         const studentAns = answers[q.id];
         
         if (q.type === QuestionType.MULTIPLE_CHOICE) {
-            if (studentAns === q.correctAnswerIndex) correctCount++;
+            // Compare with Number() to be safe
+            if (Number(studentAns) === Number(q.correctAnswerIndex)) correctCount++;
         } 
         else if (q.type === QuestionType.TRUE_FALSE) {
              try {
